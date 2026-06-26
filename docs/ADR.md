@@ -2,7 +2,7 @@
 
 ---
 
-## ADR-001: Next.js 15 App Router with Server Actions
+## ADR-001: Next.js 16 App Router with Server Actions
 
 **Status:** Accepted  
 **Date:** 2025-06-26
@@ -13,7 +13,7 @@ We need a full-stack React framework that supports both server-side and client-s
 
 ### Decision
 
-Use Next.js 15 with the App Router and Server Actions.
+Use Next.js 16 with the App Router and Server Actions.
 
 ### Rationale
 
@@ -21,7 +21,7 @@ Use Next.js 15 with the App Router and Server Actions.
 - **Server Actions** allow form submissions and mutations to call server-side code directly, eliminating the need for API route boilerplate for most mutations (brief saving, variation updates, etc.).
 - **Streaming** is first-class in App Router — `ReadableStream` and SSE work naturally in route handlers.
 - **Turbopack** as the dev bundler delivers significantly faster HMR cycles during development.
-- Next.js 15 deploys to Vercel with zero configuration — ideal for a contest submission.
+- Next.js 16 deploys to Vercel with zero configuration — ideal for a contest submission.
 
 ### Alternatives Considered
 
@@ -127,7 +127,7 @@ We need a relational database that supports JSONB (for variation content), array
 
 ### Decision
 
-Use PostgreSQL 16.
+Use PostgreSQL 18.
 
 ### Rationale
 
@@ -137,7 +137,7 @@ Use PostgreSQL 16.
 - **Reliability**: PostgreSQL is the gold standard for transactional relational data.
 - **Ecosystem**: Drizzle + Neon/Supabase (managed Postgres) makes production deployment trivial.
 
-**Local Dev:** Docker Compose runs `postgres:16-alpine`.  
+**Local Dev:** Docker Compose runs `postgres:18-alpine`.  
 **Production:** Neon (serverless Postgres, Vercel-friendly) or Supabase.
 
 ### Alternatives Considered

@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  projects     Project[]
+
+  @@map("users")
+}
+
+model Project {
+  id             String          @id @default(uuid())
+  userId         String          @map("user_id")
+  name           String
+  status         ProjectStatus   @default(draft)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brief          Brief?
+  creativeSets   CreativeSet[]
+  generationLogs GenerationLog[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, updatedAt])
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  draft
+  generated
+  archived
+}
+
+model Brief {
+  id                    String        @id @default(uuid())
+  projectId             String        @unique @map("project_id")
+  productName           String        @map("product_name")
+  description           String
+  landingUrl            String?       @map("landing_url")
+  targetAudience        String        @map("target_audience")
+  goal                  CampaignGoal
+  tone                  CampaignTone
+  budgetRange           String?       @map("budget_range")
+  platforms             Platform[]
+  variationsPerPlatform Int           @default(5) @map("variations_per_platform")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  project               Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creativeSets          CreativeSet[]
+
+  @@index([projectId])
+  @@map("briefs")
+}
+
+enum CampaignGoal {
+  conversions
+  clicks
+  awareness
+}
+
+enum CampaignTone {
+  aggressive
+  professional
+  casual
+}
+
+enum Platform {
+  google
+  meta
+  tiktok
+  taboola
+}
+
+model CreativeSet {
+  id          String      @id @default(uuid())
+  projectId   String      @map("project_id")
+  briefId     String      @map("brief_id")
+  platform    Platform
+  generatedAt DateTime    @default(now()) @map("generated_at")
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  brief       Brief       @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  variations  Variation[]
+
+  @@index([projectId])
+  @@index([projectId, platform])
+  @@map("creative_sets")
+}
+
+model Variation {
+  id            String          @id @default(uuid())
+  creativeSetId String          @map("creative_set_id")
+  platform      Platform
+  content       Json
+  isFavorite    Boolean         @default(false) @map("is_favorite")
+  label         VariationLabel?
+  notes         String?
+  position      Int             @default(0)
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  creativeSet   CreativeSet     @relation(fields: [creativeSetId], references: [id], onDelete: Cascade)
+
+  @@index([creativeSetId])
+  @@index([creativeSetId, platform])
+  @@index([creativeSetId, isFavorite])
+  @@map("variations")
+}
+
+enum VariationLabel {
+  A
+  B
+  C
+  D
+}
+
+model GenerationLog {
+  id         String              @id @default(uuid())
+  projectId  String              @map("project_id")
+  modelUsed  String              @map("model_used")
+  platform   Platform
+  tokensUsed Int?                @map("tokens_used")
+  durationMs Int?                @map("duration_ms")
+  status     GenerationLogStatus
+  errorMsg   String?             @map("error_msg")
+  createdAt  DateTime            @default(now()) @map("created_at")
+  project    Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([createdAt])
+  @@map("generation_logs")
+}
+
+enum GenerationLogStatus {
+  success
+  error
+  partial
+}
