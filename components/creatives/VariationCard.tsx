@@ -22,6 +22,13 @@ const CHAR_LIMITS: Record<string, Record<string, number>> = {
   taboola: { headline: 60, bodyText: 250, thumbnailDescription: 150 },
 };
 
+const PLATFORM_STYLE: Record<string, { header: string; dot: string; label: string }> = {
+  google: { header: "bg-blue-50 border-blue-100", dot: "bg-blue-500", label: "Google Ads" },
+  meta: { header: "bg-violet-50 border-violet-100", dot: "bg-violet-500", label: "Meta Ads" },
+  tiktok: { header: "bg-rose-50 border-rose-100", dot: "bg-rose-500", label: "TikTok Ads" },
+  taboola: { header: "bg-orange-50 border-orange-100", dot: "bg-orange-500", label: "Taboola" },
+};
+
 type VariationData = {
   id: string;
   platform: string;
@@ -33,6 +40,7 @@ type VariationData = {
 };
 
 type Props = {
+  projectId: string;
   variation: VariationData;
   onUpdate: (id: string, updates: Partial<VariationData>) => void;
   onDelete: (id: string) => void;
@@ -43,6 +51,7 @@ type Props = {
 };
 
 export default function VariationCard({
+  projectId,
   variation,
   onUpdate,
   onDelete,
@@ -55,6 +64,12 @@ export default function VariationCard({
   const [regenerating, setRegenerating] = useState(false);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notes, setNotes] = useState(variation.notes ?? "");
+
+  const style = PLATFORM_STYLE[variation.platform] ?? {
+    header: "bg-muted border-border",
+    dot: "bg-muted-foreground",
+    label: variation.platform,
+  };
 
   async function handleRegenerate() {
     setRegenerating(true);
@@ -71,38 +86,60 @@ export default function VariationCard({
   async function handleToggleFavorite() {
     const newVal = !variation.isFavorite;
     onUpdate(variation.id, { isFavorite: newVal });
-    await fetch(`/api/projects/${getProjectId()}/variations/${variation.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isFavorite: newVal }),
-    });
+    try {
+      await fetch(`/api/projects/${projectId}/variations/${variation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isFavorite: newVal }),
+      });
+    } catch {
+      onUpdate(variation.id, { isFavorite: !newVal });
+      toast.error("Failed to save — please try again");
+    }
   }
 
   async function handleLabelChange(label: string | null) {
     const val = !label || label === "none" ? null : label;
+    const prev = variation.label;
     onUpdate(variation.id, { label: val });
-    await fetch(`/api/projects/${getProjectId()}/variations/${variation.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label: val }),
-    });
+    try {
+      await fetch(`/api/projects/${projectId}/variations/${variation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: val }),
+      });
+    } catch {
+      onUpdate(variation.id, { label: prev });
+      toast.error("Failed to save — please try again");
+    }
   }
 
   async function handleSaveNotes() {
+    const prevNotes = variation.notes;
     onUpdate(variation.id, { notes });
     setEditingNotes(false);
-    await fetch(`/api/projects/${getProjectId()}/variations/${variation.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notes }),
-    });
+    try {
+      await fetch(`/api/projects/${projectId}/variations/${variation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes }),
+      });
+    } catch {
+      onUpdate(variation.id, { notes: prevNotes });
+      setEditingNotes(true);
+      toast.error("Failed to save notes — please try again");
+    }
   }
 
   async function handleDelete() {
     onDelete(variation.id);
-    await fetch(`/api/projects/${getProjectId()}/variations/${variation.id}`, {
-      method: "DELETE",
-    });
+    try {
+      await fetch(`/api/projects/${projectId}/variations/${variation.id}`, {
+        method: "DELETE",
+      });
+    } catch {
+      toast.error("Failed to delete — please refresh the page");
+    }
   }
 
   function handleCopy() {
@@ -111,47 +148,40 @@ export default function VariationCard({
     toast.success("Copied to clipboard");
   }
 
-  function getProjectId() {
-    if (typeof window !== "undefined") {
-      return window.location.pathname.split("/")[3] ?? "";
-    }
-    return "";
-  }
-
   return (
     <div
-      className={`rounded-lg border bg-card shadow-sm transition-all ${
-        isCompareSelected ? "ring-2 ring-indigo-500" : ""
+      className={`rounded-xl border bg-card shadow-sm overflow-hidden transition-all duration-150 ${
+        isCompareSelected ? "ring-2 ring-indigo-500 border-indigo-300" : ""
       }`}
     >
-      <div className="flex items-center justify-between p-3 border-b">
+      {/* Platform header bar */}
+      <div className={`flex items-center justify-between px-3 py-2 border-b ${style.header}`}>
         <div className="flex items-center gap-2">
           {showCompareCheckbox && (
             <input
               type="checkbox"
               checked={isCompareSelected}
               onChange={() => onCompareToggle?.(variation.id)}
-              className="rounded"
+              className="rounded accent-indigo-600"
             />
           )}
+          <span className={`inline-block h-2 w-2 rounded-full ${style.dot}`} />
+          <span className="text-xs font-medium text-foreground/70">{style.label}</span>
           <span className="text-xs text-muted-foreground font-mono">#{variation.position + 1}</span>
           {variation.label && (
-            <Badge variant="outline" className="text-xs px-1.5">
+            <Badge variant="outline" className="text-xs px-1.5 h-4">
               {variation.label}
             </Badge>
           )}
           {variation.isFavorite && (
-            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
           )}
         </div>
 
-        <div className="flex items-center gap-1">
-          <Select
-            value={variation.label ?? "none"}
-            onValueChange={handleLabelChange}
-          >
-            <SelectTrigger className="h-7 w-[70px] text-xs">
-              <SelectValue placeholder="Label" />
+        <div className="flex items-center gap-0.5">
+          <Select value={variation.label ?? "none"} onValueChange={handleLabelChange}>
+            <SelectTrigger className="h-6 w-[58px] text-xs border-0 bg-transparent shadow-none">
+              <SelectValue placeholder="—" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">—</SelectItem>
@@ -162,38 +192,36 @@ export default function VariationCard({
             </SelectContent>
           </Select>
 
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleToggleFavorite}>
-            <Star
-              className={`h-3.5 w-3.5 ${variation.isFavorite ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
-            />
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleToggleFavorite}>
+            <Star className={`h-3 w-3 ${variation.isFavorite ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
           </Button>
 
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCopy}>
-            <Copy className="h-3.5 w-3.5" />
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
+            <Copy className="h-3 w-3 text-muted-foreground" />
           </Button>
 
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-6 w-6"
             onClick={handleRegenerate}
             disabled={regenerating}
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-3 w-3 text-muted-foreground ${regenerating ? "animate-spin" : ""}`} />
           </Button>
 
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={handleDelete}>
-            <Trash2 className="h-3.5 w-3.5" />
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive/60 hover:text-destructive" onClick={handleDelete}>
+            <Trash2 className="h-3 w-3" />
           </Button>
 
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExpanded(!expanded)}>
-            {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setExpanded(!expanded)}>
+            {expanded ? <ChevronUp className="h-3 w-3 text-muted-foreground" /> : <ChevronDown className="h-3 w-3 text-muted-foreground" />}
           </Button>
         </div>
       </div>
 
       {expanded && (
-        <div className="p-3 space-y-3">
+        <div className="p-4 space-y-4">
           <VariationContent platform={variation.platform} content={variation.content} />
 
           <div className="border-t pt-3">
@@ -229,30 +257,30 @@ function VariationContent({ platform, content }: { platform: string; content: un
   if (platform === "google") {
     const c = content as GoogleContent;
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">
             Headlines ({c.headlines.length}/15)
           </p>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {c.headlines.map((h, i) => (
-              <div key={i} className="flex items-start justify-between gap-2 text-sm">
-                <span className="text-xs text-muted-foreground w-4 shrink-0">{i + 1}.</span>
-                <span className={`flex-1 ${h.length > 30 ? "text-destructive" : ""}`}>{h}</span>
+              <div key={i} className="flex items-start gap-2 text-sm group/row">
+                <span className="text-xs text-muted-foreground/60 w-4 shrink-0 mt-0.5">{i + 1}.</span>
+                <span className={`flex-1 leading-snug ${h.length > 30 ? "text-destructive" : ""}`}>{h}</span>
                 <CharacterCounter current={h.length} limit={CHAR_LIMITS.google.headline} />
               </div>
             ))}
           </div>
         </div>
         <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">
             Descriptions ({c.descriptions.length}/4)
           </p>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {c.descriptions.map((d, i) => (
-              <div key={i} className="flex items-start justify-between gap-2 text-sm">
-                <span className="text-xs text-muted-foreground w-4 shrink-0">{i + 1}.</span>
-                <span className={`flex-1 ${d.length > 90 ? "text-destructive" : ""}`}>{d}</span>
+              <div key={i} className="flex items-start gap-2 text-sm">
+                <span className="text-xs text-muted-foreground/60 w-4 shrink-0 mt-0.5">{i + 1}.</span>
+                <span className={`flex-1 leading-snug ${d.length > 90 ? "text-destructive" : ""}`}>{d}</span>
                 <CharacterCounter current={d.length} limit={CHAR_LIMITS.google.description} />
               </div>
             ))}
@@ -265,12 +293,12 @@ function VariationContent({ platform, content }: { platform: string; content: un
   if (platform === "meta") {
     const c = content as MetaContent;
     return (
-      <div className="space-y-2 text-sm">
+      <div className="space-y-2.5 text-sm">
         <FieldRow label="Primary Text" value={c.primaryText} limit={125} />
         <FieldRow label="Headline" value={c.headline} limit={40} />
         <FieldRow label="Description" value={c.description} limit={30} />
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">CTA</span>
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">CTA</span>
           <Badge variant="secondary" className="text-xs">{c.callToAction}</Badge>
         </div>
       </div>
@@ -280,22 +308,13 @@ function VariationContent({ platform, content }: { platform: string; content: un
   if (platform === "tiktok") {
     const c = content as TikTokContent;
     return (
-      <div className="space-y-2 text-sm">
+      <div className="space-y-2.5 text-sm">
+        <ContentBlock label="Hook (0–3s)" value={c.hook} />
+        <ContentBlock label="Body (4–25s)" value={c.body} />
+        <ContentBlock label="CTA (last 5s)" value={c.cta} />
         <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Hook (0–3s)</p>
-          <p className="text-sm bg-muted/50 rounded p-2">{c.hook}</p>
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Body (4–25s)</p>
-          <p className="text-sm bg-muted/50 rounded p-2">{c.body}</p>
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">CTA (last 5s)</p>
-          <p className="text-sm bg-muted/50 rounded p-2">{c.cta}</p>
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">On-Screen Text</p>
-          <div className="flex flex-wrap gap-1">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">On-Screen Text</p>
+          <div className="flex flex-wrap gap-1.5">
             {c.onScreenText.map((t, i) => (
               <Badge key={i} variant="outline" className="text-xs">{t}</Badge>
             ))}
@@ -308,17 +327,17 @@ function VariationContent({ platform, content }: { platform: string; content: un
   if (platform === "taboola") {
     const c = content as TaboolaContent;
     return (
-      <div className="space-y-2 text-sm">
+      <div className="space-y-2.5 text-sm">
         <FieldRow label="Headline" value={c.headline} limit={60} />
         <div>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Body</span>
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Body</span>
             <CharacterCounter current={c.bodyText.length} limit={250} />
           </div>
-          <p className="text-sm bg-muted/50 rounded p-2">{c.bodyText}</p>
+          <p className="text-sm bg-muted/40 rounded-lg p-2.5 leading-relaxed">{c.bodyText}</p>
         </div>
         <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Thumbnail</p>
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1">Thumbnail</p>
           <p className="text-sm text-muted-foreground italic">{c.thumbnailDescription}</p>
         </div>
       </div>
@@ -328,14 +347,23 @@ function VariationContent({ platform, content }: { platform: string; content: un
   return <pre className="text-xs">{JSON.stringify(content, null, 2)}</pre>;
 }
 
+function ContentBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
+      <p className="text-sm bg-muted/40 rounded-lg p-2.5 leading-relaxed">{value}</p>
+    </div>
+  );
+}
+
 function FieldRow({ label, value, limit }: { label: string; value: string; limit: number }) {
   return (
     <div>
-      <div className="flex items-center justify-between mb-0.5">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">{label}</span>
         <CharacterCounter current={value.length} limit={limit} />
       </div>
-      <p className={`text-sm bg-muted/50 rounded p-2 ${value.length > limit ? "border border-destructive" : ""}`}>{value}</p>
+      <p className={`text-sm bg-muted/40 rounded-lg p-2.5 leading-relaxed ${value.length > limit ? "border border-destructive" : ""}`}>{value}</p>
     </div>
   );
 }

@@ -7,11 +7,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Zap } from "lucide-react";
+import { Zap, BarChart3, Globe, Sparkles } from "lucide-react";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(100),
@@ -55,54 +54,112 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white px-4">
-      <div className="w-full max-w-md space-y-6">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="flex items-center gap-2">
-            <Zap className="h-8 w-8 text-indigo-600" />
-            <span className="text-2xl font-bold text-indigo-600">AdForge AI</span>
+    <div className="min-h-screen grid lg:grid-cols-2">
+      {/* Brand panel */}
+      <div className="hidden lg:flex flex-col justify-between bg-indigo-600 p-12 text-white">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center">
+            <Zap className="h-5 w-5 text-white" />
           </div>
-          <p className="text-sm text-muted-foreground">Your AI-powered ad creative studio</p>
+          <span className="text-xl font-bold tracking-tight">AdForge AI</span>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Create your account</CardTitle>
-            <CardDescription>Start generating ad creatives in seconds</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" placeholder="Alex Reyes" {...register("name")} />
-                {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="you@example.com" {...register("email")} />
-                {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" placeholder="Min 8 characters" {...register("password")} />
-                {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
-              </div>
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Creating account…" : "Create account"}
-              </Button>
-            </form>
-
-            <p className="mt-4 text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
-              <Link href="/login" className="text-indigo-600 hover:underline font-medium">
-                Sign in
-              </Link>
+        <div className="space-y-8">
+          <div className="space-y-3">
+            <h1 className="text-4xl font-bold leading-tight">
+              Your AI-powered ad creative studio
+            </h1>
+            <p className="text-indigo-200 text-lg">
+              Stop writing ad copy manually. Generate dozens of platform-ready variations instantly.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              { icon: Globe, text: "Google, Meta, TikTok & Taboola in one workspace" },
+              { icon: Sparkles, text: "AI-generated variations that match your brand voice" },
+              { icon: BarChart3, text: "Export directly to ad managers — CSV, JSON, or PDF" },
+            ].map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-start gap-3">
+                <div className="mt-0.5 h-6 w-6 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                  <Icon className="h-3.5 w-3.5" />
+                </div>
+                <p className="text-indigo-100 text-sm leading-relaxed">{text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="text-indigo-300 text-xs">
+          &copy; {new Date().getFullYear()} AdForge AI. All rights reserved.
+        </p>
+      </div>
+
+      {/* Form panel */}
+      <div className="flex items-center justify-center p-8 bg-background">
+        <div className="w-full max-w-sm space-y-8">
+          <div className="lg:hidden flex items-center gap-2 justify-center mb-2">
+            <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+              <Zap className="h-5 w-5 text-white" />
+            </div>
+            <span className="text-xl font-bold text-indigo-600">AdForge AI</span>
+          </div>
+
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Create your account</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Start generating ad creatives in seconds — free to get started.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                placeholder="Alex Reyes"
+                autoComplete="name"
+                {...register("name")}
+              />
+              {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                autoComplete="email"
+                {...register("email")}
+              />
+              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Min 8 characters"
+                autoComplete="new-password"
+                {...register("password")}
+              />
+              {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+            </div>
+
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+              {loading ? "Creating account…" : "Create free account"}
+            </Button>
+          </form>
+
+          <p className="text-center text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link href="/login" className="text-indigo-600 hover:text-indigo-700 font-medium hover:underline">
+              Sign in
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

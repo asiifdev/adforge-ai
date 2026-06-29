@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal, Pencil, Archive, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Archive, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -35,6 +35,22 @@ export default function ProjectActions({ projectId, projectName }: Props) {
     }
   }
 
+  async function handleDuplicate() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/duplicate`, { method: "POST" });
+      if (!res.ok) {
+        toast.error("Failed to duplicate project");
+        return;
+      }
+      const { id } = await res.json();
+      toast.success(`"${projectName}" duplicated`);
+      router.push(`/dashboard/projects/${id}/brief`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleDelete() {
     if (!confirm(`Delete "${projectName}"? This cannot be undone.`)) return;
     setLoading(true);
@@ -59,6 +75,10 @@ export default function ProjectActions({ projectId, projectName }: Props) {
         <DropdownMenuItem onClick={() => router.push(`/dashboard/projects/${projectId}/brief`)}>
           <Pencil className="h-3.5 w-3.5 mr-2" />
           Edit Brief
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleDuplicate}>
+          <Copy className="h-3.5 w-3.5 mr-2" />
+          Duplicate
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleArchive}>
           <Archive className="h-3.5 w-3.5 mr-2" />

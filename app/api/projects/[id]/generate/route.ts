@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth";
 import { generateVariations } from "@/lib/ai/generator";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { BriefInput } from "@/lib/validators/brief";
 import { Platform } from "@prisma/client";
 
@@ -17,6 +18,22 @@ export async function POST(
   if (!userId) {
     return new Response(JSON.stringify({ error: "UNAUTHORIZED" }), { status: 401 });
   }
+
+  const { allowed, remaining, resetAt } = checkRateLimit(`generate:${userId}`, 10);
+  if (!allowed) {
+    return new Response(
+      JSON.stringify({ error: { code: "RATE_LIMITED", message: "Too many requests. Try again in a minute." } }),
+      {
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": "10",
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": String(Math.ceil(resetAt / 1000)),
+        },
+      }
+    );
+  }
+  void remaining;
 
   const { id } = await params;
 
@@ -66,6 +83,8 @@ export async function POST(
           });
 
           const variationsForPlatform: unknown[] = [];
+          let platformTokens = 0;
+          const platformStart = Date.now();
 
           const { variations } = await generateVariations(
             brief,
@@ -82,19 +101,19 @@ export async function POST(
               });
               variationsForPlatform.push(variation);
               send("variation", { platform: plat, variation, index });
+            },
+            (_plat, tokensUsed) => {
+              platformTokens = tokensUsed;
             }
           );
-
-          const tokensUsed = 0;
-          const durationMs = Date.now() - start;
 
           await prisma.generationLog.create({
             data: {
               projectId: id,
               modelUsed: process.env.OPENAI_MODEL ?? "gpt-4o",
               platform,
-              tokensUsed,
-              durationMs,
+              tokensUsed: platformTokens,
+              durationMs: Date.now() - platformStart,
               status: "success",
             },
           });

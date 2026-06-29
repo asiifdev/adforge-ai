@@ -174,7 +174,7 @@ export default function BriefForm({ projectId, initialBrief }: Props) {
                 name="goal"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select value={field.value ?? ""} onValueChange={field.onChange}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select goal" />
                     </SelectTrigger>
@@ -195,7 +195,7 @@ export default function BriefForm({ projectId, initialBrief }: Props) {
                 name="tone"
                 control={control}
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select value={field.value ?? ""} onValueChange={field.onChange}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select tone" />
                     </SelectTrigger>
@@ -217,7 +217,7 @@ export default function BriefForm({ projectId, initialBrief }: Props) {
                 control={control}
                 render={({ field }) => (
                   <Select
-                    value={String(field.value)}
+                    value={field.value != null ? String(field.value) : ""}
                     onValueChange={(v) => v && field.onChange(parseInt(v))}
                   >
                     <SelectTrigger>
@@ -273,7 +273,7 @@ export default function BriefForm({ projectId, initialBrief }: Props) {
         <Button
           type="submit"
           disabled={isSubmitting}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white min-w-[200px]"
+          className="min-w-[200px]"
         >
           {isSubmitting ? "Saving…" : "Save Brief & Continue →"}
         </Button>

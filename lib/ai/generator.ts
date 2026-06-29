@@ -114,7 +114,8 @@ export async function generateVariations(
   brief: BriefInput,
   platforms: Platform[],
   count: number,
-  onVariation?: (platform: Platform, content: unknown, index: number) => void
+  onVariation?: (platform: Platform, content: unknown, index: number) => void,
+  onPlatformComplete?: (platform: Platform, tokensUsed: number) => void
 ): Promise<GenerationResult> {
   const start = Date.now();
   const allVariations: GeneratedVariation[] = [];
@@ -129,6 +130,8 @@ export async function generateVariations(
       allVariations.push(variation);
       onVariation?.(platform, content, index);
     });
+
+    onPlatformComplete?.(platform, tokensUsed);
   }
 
   return {
