@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { logError } from "@/lib/logger";
 import { updateVariationSchema } from "@/lib/validators/variation";
 import { VariationLabel } from "@prisma/client";
 
@@ -19,6 +21,8 @@ export async function PATCH(
 ) {
   try {
     const { userId } = await requireAuth();
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
     const { variationId } = await params;
 
     const variation = await getVariationForUser(variationId, userId);
@@ -46,6 +50,7 @@ export async function PATCH(
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("PATCH /api/projects/:id/variations/:variationId", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Failed to update variation" } }, { status: 500 });
   }
 }
@@ -56,6 +61,8 @@ export async function DELETE(
 ) {
   try {
     const { userId } = await requireAuth();
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
     const { variationId } = await params;
 
     const variation = await getVariationForUser(variationId, userId);
@@ -69,6 +76,7 @@ export async function DELETE(
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("DELETE /api/projects/:id/variations/:variationId", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Failed to delete variation" } }, { status: 500 });
   }
 }

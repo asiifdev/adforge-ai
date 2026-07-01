@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Plus, Zap, FolderOpen } from "lucide-react";
+import { Plus, Zap, FolderOpen, Archive } from "lucide-react";
 import { Suspense } from "react";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
@@ -30,15 +30,19 @@ const STATUS_STYLES: Record<string, string> = {
   archived: "border-border text-muted-foreground",
 };
 
+const PAGE_SIZE = 12;
+
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string; platform?: string }>;
+  searchParams: Promise<{ search?: string; platform?: string; from?: string; to?: string; page?: string; archived?: string }>;
 }) {
   const { userId } = await requireAuth().catch(() => ({ userId: null }));
   if (!userId) redirect("/login");
 
-  const { search, platform } = await searchParams;
+  const { search, platform, from, to, page: pageParam, archived } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const showArchived = archived === "true";
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -47,21 +51,33 @@ export default async function DashboardPage({
 
   const where = {
     userId,
-    status: { not: "archived" as const },
+    status: showArchived ? ("archived" as const) : { not: "archived" as const },
     ...(search && { name: { contains: search, mode: "insensitive" as const } }),
     ...(platform && {
       brief: { platforms: { has: platform as "google" | "meta" | "tiktok" | "taboola" } },
     }),
+    ...((from || to) && {
+      updatedAt: {
+        ...(from && { gte: new Date(from) }),
+        ...(to && { lte: new Date(`${to}T23:59:59.999Z`) }),
+      },
+    }),
   };
 
-  const projects = await prisma.project.findMany({
-    where,
-    orderBy: { updatedAt: "desc" },
-    include: {
-      brief: { select: { platforms: true, productName: true } },
-      _count: { select: { creativeSets: true } },
-    },
-  });
+  const [projects, matchingCount] = await Promise.all([
+    prisma.project.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+      include: {
+        brief: { select: { platforms: true, productName: true } },
+        _count: { select: { creativeSets: true } },
+      },
+    }),
+    prisma.project.count({ where }),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(matchingCount / PAGE_SIZE));
 
   const variationCounts = await Promise.all(
     projects.map(async (p) => {
@@ -108,15 +124,30 @@ export default async function DashboardPage({
         <div className="flex items-start justify-between mb-6 gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
-              {user?.name ? `Welcome back, ${user.name.split(" ")[0]}` : "Projects"}
+              {showArchived
+                ? "Archived Projects"
+                : user?.name
+                ? `Welcome back, ${user.name.split(" ")[0]}`
+                : "Projects"}
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {totalProjects === 0
+              {showArchived
+                ? `${matchingCount} archived project${matchingCount === 1 ? "" : "s"}`
+                : totalProjects === 0
                 ? "Create your first campaign brief to get started"
                 : `${totalProjects} active project${totalProjects === 1 ? "" : "s"}`}
             </p>
           </div>
-          <NewProjectButton userId={userId} />
+          <div className="flex items-center gap-2">
+            <Link
+              href={showArchived ? "/dashboard" : "/dashboard?archived=true"}
+              className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
+            >
+              <Archive className="h-4 w-4" />
+              {showArchived ? "Back to Active" : "View Archived"}
+            </Link>
+            {!showArchived && <NewProjectButton userId={userId} />}
+          </div>
         </div>
 
         {totalProjects > 0 && (
@@ -127,7 +158,11 @@ export default async function DashboardPage({
           </div>
         )}
 
-        {projects.length === 0 && totalProjects === 0 ? (
+        {showArchived && projects.length === 0 ? (
+          <div className="text-center py-16 rounded-2xl border border-dashed text-muted-foreground">
+            <p className="font-medium">No archived projects</p>
+          </div>
+        ) : projects.length === 0 && totalProjects === 0 ? (
           <div className="text-center py-28 rounded-2xl border border-dashed border-border bg-muted/20">
             <div className="h-14 w-14 rounded-2xl bg-indigo-100 flex items-center justify-center mx-auto mb-4">
               <FolderOpen className="h-7 w-7 text-indigo-600" />
@@ -165,7 +200,12 @@ export default async function DashboardPage({
                         </p>
                       )}
                     </div>
-                    <ProjectActions projectId={project.id} projectName={project.name} />
+                    <ProjectActions
+                      projectId={project.id}
+                      projectName={project.name}
+                      isArchived={project.status === "archived"}
+                      hasGenerated={project._count.creativeSets > 0}
+                    />
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -203,8 +243,67 @@ export default async function DashboardPage({
             ))}
           </div>
         )}
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3 mt-8">
+            <PageLink
+              page={page - 1}
+              disabled={page <= 1}
+              search={{ search, platform, from, to, archived }}
+            >
+              Previous
+            </PageLink>
+            <span className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <PageLink
+              page={page + 1}
+              disabled={page >= totalPages}
+              search={{ search, platform, from, to, archived }}
+            >
+              Next
+            </PageLink>
+          </div>
+        )}
       </main>
     </div>
+  );
+}
+
+function PageLink({
+  page,
+  disabled,
+  search,
+  children,
+}: {
+  page: number;
+  disabled: boolean;
+  search: { search?: string; platform?: string; from?: string; to?: string; archived?: string };
+  children: React.ReactNode;
+}) {
+  if (disabled) {
+    return (
+      <span className="text-sm text-muted-foreground/40 px-3 py-1.5 rounded-md border border-border cursor-not-allowed">
+        {children}
+      </span>
+    );
+  }
+
+  const params = new URLSearchParams();
+  if (search.search) params.set("search", search.search);
+  if (search.platform) params.set("platform", search.platform);
+  if (search.from) params.set("from", search.from);
+  if (search.to) params.set("to", search.to);
+  if (search.archived) params.set("archived", search.archived);
+  params.set("page", String(page));
+
+  return (
+    <Link
+      href={`/dashboard?${params.toString()}`}
+      className="text-sm px-3 py-1.5 rounded-md border border-border hover:bg-muted transition-colors"
+    >
+      {children}
+    </Link>
   );
 }
 

@@ -70,82 +70,102 @@ export async function POST(
         controller.enqueue(enc.encode(sse(event, data)));
       };
 
+      let totalSaved = 0;
+      let anyPlatformFailed = false;
+
       try {
+        // Each platform is generated and logged independently — one platform's
+        // failure (e.g. a bad model response) shouldn't discard variations that
+        // other platforms already generated in the same run.
         for (const platform of platforms) {
           send("platform_start", { platform });
-
-          const creativeSet = await prisma.creativeSet.create({
-            data: {
-              projectId: id,
-              briefId: project.brief!.id,
-              platform,
-            },
-          });
 
           const variationsForPlatform: unknown[] = [];
           let platformTokens = 0;
           const platformStart = Date.now();
 
-          const { variations } = await generateVariations(
-            brief,
-            [platform],
-            brief.variationsPerPlatform,
-            async (plat, content, index) => {
-              const variation = await prisma.variation.create({
-                data: {
-                  creativeSetId: creativeSet.id,
-                  platform: plat,
-                  content: content as object,
-                  position: index,
-                },
-              });
-              variationsForPlatform.push(variation);
-              send("variation", { platform: plat, variation, index });
-            },
-            (_plat, tokensUsed) => {
-              platformTokens = tokensUsed;
+          try {
+            const creativeSet = await prisma.creativeSet.create({
+              data: {
+                projectId: id,
+                briefId: project.brief!.id,
+                platform,
+              },
+            });
+
+            await generateVariations(
+              brief,
+              [platform],
+              brief.variationsPerPlatform,
+              async (plat, content, index) => {
+                const variation = await prisma.variation.create({
+                  data: {
+                    creativeSetId: creativeSet.id,
+                    platform: plat,
+                    content: content as object,
+                    position: index,
+                  },
+                });
+                variationsForPlatform.push(variation);
+                totalSaved++;
+                send("variation", { platform: plat, variation, index });
+              },
+              (_plat, tokensUsed) => {
+                platformTokens = tokensUsed;
+              }
+            );
+
+            await prisma.generationLog.create({
+              data: {
+                projectId: id,
+                modelUsed: process.env.OPENAI_MODEL ?? "gpt-4o",
+                platform,
+                tokensUsed: platformTokens,
+                durationMs: Date.now() - platformStart,
+                status: "success",
+              },
+            });
+
+            send("platform_complete", { platform, count: variationsForPlatform.length });
+          } catch (err) {
+            anyPlatformFailed = true;
+            const msg = err instanceof Error ? err.message : "Generation failed";
+            const partial = variationsForPlatform.length > 0;
+
+            await prisma.generationLog.create({
+              data: {
+                projectId: id,
+                modelUsed: process.env.OPENAI_MODEL ?? "gpt-4o",
+                platform,
+                tokensUsed: platformTokens,
+                durationMs: Date.now() - platformStart,
+                status: partial ? "partial" : "error",
+                errorMsg: msg,
+              },
+            }).catch(() => undefined);
+
+            send("error", { message: msg, platform });
+            if (partial) {
+              send("platform_complete", { platform, count: variationsForPlatform.length });
             }
-          );
+          }
+        }
 
-          await prisma.generationLog.create({
-            data: {
-              projectId: id,
-              modelUsed: process.env.OPENAI_MODEL ?? "gpt-4o",
-              platform,
-              tokensUsed: platformTokens,
-              durationMs: Date.now() - platformStart,
-              status: "success",
-            },
-          });
-
-          send("platform_complete", {
-            platform,
-            count: variations.filter((v) => v.platform === platform).length,
+        if (totalSaved > 0) {
+          await prisma.project.update({
+            where: { id },
+            data: { status: "generated" },
           });
         }
 
-        await prisma.project.update({
-          where: { id },
-          data: { status: "generated" },
-        });
-
         send("done", {
-          totalVariations: platforms.length * brief.variationsPerPlatform,
+          totalVariations: totalSaved,
           durationMs: Date.now() - start,
+          partial: anyPlatformFailed && totalSaved > 0,
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Generation failed";
         send("error", { message: msg });
-
-        await prisma.generationLog.create({
-          data: {
-            projectId: id,
-            modelUsed: process.env.OPENAI_MODEL ?? "gpt-4o",
-            platform: platforms[0] ?? "google",
-            status: "error",
-            errorMsg: msg,
-          },
-        }).catch(() => undefined);
       } finally {
         controller.close();
       }

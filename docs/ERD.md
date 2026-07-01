@@ -243,11 +243,13 @@ CREATE INDEX idx_generation_logs_created ON generation_logs(created_at DESC);
 
 ---
 
-## Drizzle ORM Schema Notes
+## Prisma ORM Schema Notes
 
-All tables will be defined in `lib/db/schema.ts` using Drizzle's schema DSL:
-- UUIDs use `uuid('id').primaryKey().defaultRandom()`
-- Timestamps use `timestamp('created_at', { withTimezone: true }).defaultNow().notNull()`
-- JSONB fields use `jsonb('content').notNull()`
-- Text arrays use `text('platforms').array().notNull()`
-- All FK relationships defined with Drizzle's `references()` with `onDelete: 'cascade'`
+The project pivoted from Drizzle to Prisma (see ADR-008). All tables are defined in
+`prisma/schema.prisma`, which is the single source of truth for schema and migrations:
+- UUIDs use `String @id @default(uuid())`
+- Timestamps use `DateTime @default(now())` / `@updatedAt`, mapped to `snake_case` columns via `@map(...)`
+- JSONB fields use the `Json` type (`variations.content`)
+- Text/enum arrays use Prisma list fields (`Platform[]` for `briefs.platforms`)
+- All FK relationships defined with `@relation(fields: [...], references: [...], onDelete: Cascade)`
+- The Prisma client is generated to `node_modules/.prisma/client` (customized in `schema.prisma`) and accessed via the `@prisma/adapter-pg` driver adapter in `lib/db/client.ts`

@@ -1,7 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const limited = enforceRateLimit(`auth:me:${clientIp(req)}`);
+  if (limited) return limited;
+
   const user = await getAuthUser();
 
   if (!user) {

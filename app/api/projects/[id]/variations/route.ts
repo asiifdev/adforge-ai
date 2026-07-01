@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { logError } from "@/lib/logger";
 import { Platform } from "@prisma/client";
 
 export async function GET(
@@ -9,6 +11,8 @@ export async function GET(
 ) {
   try {
     const { userId } = await requireAuth();
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
     const { id } = await params;
     const { searchParams } = new URL(req.url);
 
@@ -36,6 +40,7 @@ export async function GET(
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("GET /api/projects/:id/variations", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Failed to fetch variations" } }, { status: 500 });
   }
 }

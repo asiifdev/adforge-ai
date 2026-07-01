@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { logError } from "@/lib/logger";
 import { briefSchema } from "@/lib/validators/brief";
 import { Platform, CampaignGoal, CampaignTone } from "@prisma/client";
 
@@ -10,6 +12,8 @@ export async function GET(
 ) {
   try {
     const { userId } = await requireAuth();
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
     const { id } = await params;
 
     const project = await prisma.project.findFirst({ where: { id, userId } });
@@ -27,6 +31,7 @@ export async function GET(
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("GET /api/projects/:id/brief", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Failed to fetch brief" } }, { status: 500 });
   }
 }
@@ -37,6 +42,8 @@ export async function POST(
 ) {
   try {
     const { userId } = await requireAuth();
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
     const { id } = await params;
 
     const project = await prisma.project.findFirst({ where: { id, userId } });
@@ -87,6 +94,7 @@ export async function POST(
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("POST /api/projects/:id/brief", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Failed to save brief" } }, { status: 500 });
   }
 }

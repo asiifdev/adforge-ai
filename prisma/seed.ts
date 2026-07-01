@@ -1,12 +1,33 @@
 import { config } from "dotenv";
-config({ path: ".env.local", override: true });
+// Do not override a DATABASE_URL the caller already set (e.g. via `dotenv -e
+// .env.test --`) — forcing .env.local here would silently defeat that and
+// the safety guard below, seeding whatever .env.local points to instead.
+config({ path: ".env.local" });
 
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 
+// This seed ships known demo credentials (demo@adforge.ai / password123) —
+// never let it run against production or an unrecognized remote database.
+const databaseUrl = process.env.DATABASE_URL ?? "";
+const looksLocal = /^postgresql:\/\/[^/]*@?(localhost|127\.0\.0\.1|postgres|::1)[:/]/.test(databaseUrl);
+
+if (process.env.NODE_ENV === "production") {
+  console.error("❌ Refusing to run the demo seed with NODE_ENV=production.");
+  process.exit(1);
+}
+
+if (!looksLocal && process.env.ALLOW_SEED_NON_LOCAL !== "true") {
+  console.error(
+    "❌ DATABASE_URL doesn't look like a local/dev database. Refusing to seed known demo credentials into it.\n" +
+      "   If this really is safe (a disposable/test database), set ALLOW_SEED_NON_LOCAL=true and re-run."
+  );
+  process.exit(1);
+}
+
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
+  connectionString: databaseUrl,
 });
 const prisma = new PrismaClient({ adapter });
 

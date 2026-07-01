@@ -25,6 +25,7 @@ export default function DashboardSearch() {
       } else {
         params.delete(key);
       }
+      params.delete("page");
       router.push(`${pathname}?${params.toString()}`);
     },
     [router, pathname, searchParams]
@@ -57,6 +58,21 @@ export default function DashboardSearch() {
           <SelectItem value="taboola">Taboola</SelectItem>
         </SelectContent>
       </Select>
+
+      <Input
+        type="date"
+        aria-label="Updated from"
+        className="w-[150px]"
+        defaultValue={searchParams.get("from") ?? ""}
+        onChange={(e) => updateParams("from", e.target.value)}
+      />
+      <Input
+        type="date"
+        aria-label="Updated to"
+        className="w-[150px]"
+        defaultValue={searchParams.get("to") ?? ""}
+        onChange={(e) => updateParams("to", e.target.value)}
+      />
     </div>
   );
 }

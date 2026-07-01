@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { logError } from "@/lib/logger";
 
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -19,6 +21,8 @@ export async function GET(
 ) {
   try {
     const { userId } = await requireAuth();
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
     const { id } = await params;
     const project = await prisma.project.findFirst({
       where: { id, userId },
@@ -52,6 +56,7 @@ export async function GET(
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("GET /api/projects/:id", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Failed to fetch project" } }, { status: 500 });
   }
 }
@@ -62,6 +67,8 @@ export async function PATCH(
 ) {
   try {
     const { userId } = await requireAuth();
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
     const { id } = await params;
     const project = await getProjectForUser(id, userId);
 
@@ -86,6 +93,7 @@ export async function PATCH(
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("PATCH /api/projects/:id", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Failed to update project" } }, { status: 500 });
   }
 }
@@ -96,6 +104,8 @@ export async function DELETE(
 ) {
   try {
     const { userId } = await requireAuth();
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
     const { id } = await params;
     const project = await getProjectForUser(id, userId);
 
@@ -109,6 +119,7 @@ export async function DELETE(
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("DELETE /api/projects/:id", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Failed to delete project" } }, { status: 500 });
   }
 }

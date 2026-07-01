@@ -6,6 +6,13 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import VariationCard from "@/components/creatives/VariationCard";
 import StreamingIndicator from "@/components/shared/StreamingIndicator";
@@ -65,6 +72,7 @@ export default function CreativesClient({ projectId, brief, initialVariations, p
   const [compareMode, setCompareMode] = useState(false);
   const [compareSelected, setCompareSelected] = useState<string[]>([]);
   const [filterFavorites, setFilterFavorites] = useState(false);
+  const [sortBy, setSortBy] = useState<"created" | "label">("created");
   const [activeTab, setActiveTab] = useState(platforms[0] ?? "google");
 
   async function handleGenerate() {
@@ -176,6 +184,16 @@ export default function CreativesClient({ projectId, brief, initialVariations, p
   const platformVariations = (platform: string) => {
     let list = variations.filter((v) => v.platform === platform);
     if (filterFavorites) list = list.filter((v) => v.isFavorite);
+    if (sortBy === "label") {
+      list = [...list].sort((a, b) => {
+        if (!a.label && !b.label) return 0;
+        if (!a.label) return 1;
+        if (!b.label) return -1;
+        return a.label.localeCompare(b.label);
+      });
+    } else {
+      list = [...list].sort((a, b) => a.position - b.position);
+    }
     return list;
   };
 
@@ -207,6 +225,16 @@ export default function CreativesClient({ projectId, brief, initialVariations, p
                 <Star className={`h-3.5 w-3.5 mr-1.5 ${filterFavorites ? "fill-amber-400 text-amber-400" : ""}`} />
                 Starred
               </Button>
+
+              <Select value={sortBy} onValueChange={(v) => v && setSortBy(v as "created" | "label")}>
+                <SelectTrigger size="sm" className="h-8 w-[130px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="created">Sort: Created</SelectItem>
+                  <SelectItem value="label">Sort: By label</SelectItem>
+                </SelectContent>
+              </Select>
 
               <Button
                 variant="outline"

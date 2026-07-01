@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { logError } from "@/lib/logger";
 import { Platform, CampaignGoal, CampaignTone } from "@prisma/client";
 
 export async function POST(
@@ -9,6 +11,8 @@ export async function POST(
 ) {
   try {
     const { userId } = await requireAuth();
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
     const { id } = await params;
 
     const source = await prisma.project.findFirst({
@@ -50,6 +54,7 @@ export async function POST(
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("POST /api/projects/:id/duplicate", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Failed to duplicate project" } }, { status: 500 });
   }
 }

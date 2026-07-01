@@ -25,18 +25,68 @@ export type GenerationResult = {
   durationMs: number;
 };
 
+// The model occasionally drifts by one or two entries. Rather than aborting the whole
+// platform's generation (FRD 2.3 calls for trim/pad, not hard failure), coerce to the
+// exact count the schema requires: trim overflow, pad shortfall by cycling existing entries.
+function coerceToLength(items: string[], length: number): string[] {
+  if (items.length === 0) return Array(length).fill("");
+  if (items.length >= length) return items.slice(0, length);
+  const padded = [...items];
+  let i = 0;
+  while (padded.length < length) {
+    padded.push(items[i % items.length]);
+    i++;
+  }
+  return padded;
+}
+
+async function generateGoogleRSASet(brief: BriefInput): Promise<{ variation: unknown; tokensUsed: number }> {
+  const response = await getOpenAIClient().chat.completions.create({
+    model: DEFAULT_MODEL,
+    messages: [
+      { role: "system", content: getGoogleSystemPrompt() },
+      { role: "user", content: getGoogleUserPrompt(brief) },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.85,
+    top_p: 0.95,
+  });
+
+  const tokensUsed = response.usage?.total_tokens ?? 0;
+  const raw = response.choices[0]?.message?.content ?? "{}";
+  const parsed = JSON.parse(raw);
+
+  const validated = googleContentSchema.parse({
+    headlines: coerceToLength(parsed.headlines ?? [], 15),
+    descriptions: coerceToLength(parsed.descriptions ?? [], 4),
+  });
+
+  return { variation: validated, tokensUsed };
+}
+
 async function generateForPlatform(
   platform: Platform,
   brief: BriefInput,
   count: number
 ): Promise<{ variations: unknown[]; tokensUsed: number }> {
+  if (platform === "google") {
+    // Each Google "variation" is one complete RSA set (15 headlines + 4 descriptions) —
+    // the model can't reliably produce N distinct full sets in a single completion
+    // without diversity collapsing, so each set is requested in its own call.
+    let tokensUsed = 0;
+    const variations: unknown[] = [];
+    for (let i = 0; i < count; i++) {
+      const { variation, tokensUsed: t } = await generateGoogleRSASet(brief);
+      variations.push(variation);
+      tokensUsed += t;
+    }
+    return { variations, tokensUsed };
+  }
+
   let systemPrompt: string;
   let userPrompt: string;
 
-  if (platform === "google") {
-    systemPrompt = getGoogleSystemPrompt();
-    userPrompt = getGoogleUserPrompt(brief);
-  } else if (platform === "meta") {
+  if (platform === "meta") {
     systemPrompt = getMetaSystemPrompt();
     userPrompt = getMetaUserPrompt(brief, count);
   } else if (platform === "tiktok") {
@@ -61,14 +111,6 @@ async function generateForPlatform(
   const tokensUsed = response.usage?.total_tokens ?? 0;
   const raw = response.choices[0]?.message?.content ?? "{}";
   const parsed = JSON.parse(raw);
-
-  if (platform === "google") {
-    const validated = googleContentSchema.parse({
-      headlines: parsed.headlines ?? [],
-      descriptions: parsed.descriptions ?? [],
-    });
-    return { variations: [validated], tokensUsed };
-  }
 
   const variationsRaw: unknown[] = parsed.variations ?? [];
 

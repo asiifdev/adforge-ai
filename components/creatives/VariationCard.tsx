@@ -50,6 +50,26 @@ type Props = {
   showCompareCheckbox?: boolean;
 };
 
+// Mirrors the server-side merge in regenerate-field/route.ts so the UI can patch
+// local state immediately without waiting for a full variation refetch.
+function applyFieldToContent(content: unknown, field: string, value: string): unknown {
+  const obj = { ...(content as Record<string, unknown>) };
+  const arrayMatch = field.match(/^(headline|description)_(\d+)$/);
+
+  if (arrayMatch) {
+    const [, key, idxStr] = arrayMatch;
+    const arrayKey = key === "headline" ? "headlines" : "descriptions";
+    const idx = parseInt(idxStr, 10) - 1;
+    const arr = Array.isArray(obj[arrayKey]) ? [...(obj[arrayKey] as string[])] : [];
+    if (idx >= 0 && idx < arr.length) arr[idx] = value;
+    obj[arrayKey] = arr;
+    return obj;
+  }
+
+  obj[field] = value;
+  return obj;
+}
+
 export default function VariationCard({
   projectId,
   variation,
@@ -62,8 +82,28 @@ export default function VariationCard({
 }: Props) {
   const [expanded, setExpanded] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [regeneratingField, setRegeneratingField] = useState<string | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
   const [notes, setNotes] = useState(variation.notes ?? "");
+
+  async function handleRegenerateField(field: string) {
+    setRegeneratingField(field);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/variations/${variation.id}/regenerate-field`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field }),
+      });
+      if (!res.ok) throw new Error("Field regeneration failed");
+      const { value } = await res.json();
+      onUpdate(variation.id, { content: applyFieldToContent(variation.content, field, value) });
+      toast.success("Field regenerated");
+    } catch {
+      toast.error("Failed to regenerate field — please try again");
+    } finally {
+      setRegeneratingField(null);
+    }
+  }
 
   const style = PLATFORM_STYLE[variation.platform] ?? {
     header: "bg-muted border-border",
@@ -222,7 +262,12 @@ export default function VariationCard({
 
       {expanded && (
         <div className="p-4 space-y-4">
-          <VariationContent platform={variation.platform} content={variation.content} />
+          <VariationContent
+            platform={variation.platform}
+            content={variation.content}
+            onRegenerateField={handleRegenerateField}
+            regeneratingField={regeneratingField}
+          />
 
           <div className="border-t pt-3">
             {editingNotes ? (
@@ -253,7 +298,35 @@ export default function VariationCard({
   );
 }
 
-function VariationContent({ platform, content }: { platform: string; content: unknown }) {
+type FieldRegenProps = {
+  onRegenerateField: (field: string) => Promise<void>;
+  regeneratingField: string | null;
+};
+
+function RegenFieldButton({ field, onRegenerateField, regeneratingField }: { field: string } & FieldRegenProps) {
+  const isRegenerating = regeneratingField === field;
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-5 w-5 shrink-0"
+      disabled={regeneratingField !== null}
+      onClick={() => onRegenerateField(field)}
+      title="Regenerate this field"
+    >
+      <RefreshCw className={`h-3 w-3 text-muted-foreground ${isRegenerating ? "animate-spin" : ""}`} />
+    </Button>
+  );
+}
+
+function VariationContent({
+  platform,
+  content,
+  onRegenerateField,
+  regeneratingField,
+}: { platform: string; content: unknown } & FieldRegenProps) {
+  const regenProps = { onRegenerateField, regeneratingField };
+
   if (platform === "google") {
     const c = content as GoogleContent;
     return (
@@ -268,6 +341,7 @@ function VariationContent({ platform, content }: { platform: string; content: un
                 <span className="text-xs text-muted-foreground/60 w-4 shrink-0 mt-0.5">{i + 1}.</span>
                 <span className={`flex-1 leading-snug ${h.length > 30 ? "text-destructive" : ""}`}>{h}</span>
                 <CharacterCounter current={h.length} limit={CHAR_LIMITS.google.headline} />
+                <RegenFieldButton field={`headline_${i + 1}`} {...regenProps} />
               </div>
             ))}
           </div>
@@ -282,6 +356,7 @@ function VariationContent({ platform, content }: { platform: string; content: un
                 <span className="text-xs text-muted-foreground/60 w-4 shrink-0 mt-0.5">{i + 1}.</span>
                 <span className={`flex-1 leading-snug ${d.length > 90 ? "text-destructive" : ""}`}>{d}</span>
                 <CharacterCounter current={d.length} limit={CHAR_LIMITS.google.description} />
+                <RegenFieldButton field={`description_${i + 1}`} {...regenProps} />
               </div>
             ))}
           </div>
@@ -294,9 +369,9 @@ function VariationContent({ platform, content }: { platform: string; content: un
     const c = content as MetaContent;
     return (
       <div className="space-y-2.5 text-sm">
-        <FieldRow label="Primary Text" value={c.primaryText} limit={125} />
-        <FieldRow label="Headline" value={c.headline} limit={40} />
-        <FieldRow label="Description" value={c.description} limit={30} />
+        <FieldRow label="Primary Text" value={c.primaryText} limit={125} field="primaryText" {...regenProps} />
+        <FieldRow label="Headline" value={c.headline} limit={40} field="headline" {...regenProps} />
+        <FieldRow label="Description" value={c.description} limit={30} field="description" {...regenProps} />
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">CTA</span>
           <Badge variant="secondary" className="text-xs">{c.callToAction}</Badge>
@@ -309,9 +384,9 @@ function VariationContent({ platform, content }: { platform: string; content: un
     const c = content as TikTokContent;
     return (
       <div className="space-y-2.5 text-sm">
-        <ContentBlock label="Hook (0–3s)" value={c.hook} />
-        <ContentBlock label="Body (4–25s)" value={c.body} />
-        <ContentBlock label="CTA (last 5s)" value={c.cta} />
+        <ContentBlock label="Hook (0–3s)" value={c.hook} field="hook" {...regenProps} />
+        <ContentBlock label="Body (4–25s)" value={c.body} field="body" {...regenProps} />
+        <ContentBlock label="CTA (last 5s)" value={c.cta} field="cta" {...regenProps} />
         <div>
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">On-Screen Text</p>
           <div className="flex flex-wrap gap-1.5">
@@ -328,18 +403,9 @@ function VariationContent({ platform, content }: { platform: string; content: un
     const c = content as TaboolaContent;
     return (
       <div className="space-y-2.5 text-sm">
-        <FieldRow label="Headline" value={c.headline} limit={60} />
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Body</span>
-            <CharacterCounter current={c.bodyText.length} limit={250} />
-          </div>
-          <p className="text-sm bg-muted/40 rounded-lg p-2.5 leading-relaxed">{c.bodyText}</p>
-        </div>
-        <div>
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1">Thumbnail</p>
-          <p className="text-sm text-muted-foreground italic">{c.thumbnailDescription}</p>
-        </div>
+        <FieldRow label="Headline" value={c.headline} limit={60} field="headline" {...regenProps} />
+        <ContentBlock label="Body" value={c.bodyText} limit={250} field="bodyText" {...regenProps} />
+        <ContentBlock label="Thumbnail" value={c.thumbnailDescription} field="thumbnailDescription" {...regenProps} italic />
       </div>
     );
   }
@@ -347,21 +413,45 @@ function VariationContent({ platform, content }: { platform: string; content: un
   return <pre className="text-xs">{JSON.stringify(content, null, 2)}</pre>;
 }
 
-function ContentBlock({ label, value }: { label: string; value: string }) {
+function ContentBlock({
+  label,
+  value,
+  limit,
+  field,
+  italic,
+  onRegenerateField,
+  regeneratingField,
+}: { label: string; value: string; limit?: number; italic?: boolean } & FieldRegenProps & { field: string }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
-      <p className="text-sm bg-muted/40 rounded-lg p-2.5 leading-relaxed">{value}</p>
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">{label}</p>
+        <div className="flex items-center gap-1">
+          {limit !== undefined && <CharacterCounter current={value.length} limit={limit} />}
+          <RegenFieldButton field={field} onRegenerateField={onRegenerateField} regeneratingField={regeneratingField} />
+        </div>
+      </div>
+      <p className={`text-sm bg-muted/40 rounded-lg p-2.5 leading-relaxed ${italic ? "text-muted-foreground italic" : ""}`}>{value}</p>
     </div>
   );
 }
 
-function FieldRow({ label, value, limit }: { label: string; value: string; limit: number }) {
+function FieldRow({
+  label,
+  value,
+  limit,
+  field,
+  onRegenerateField,
+  regeneratingField,
+}: { label: string; value: string; limit: number; field: string } & FieldRegenProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
         <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">{label}</span>
-        <CharacterCounter current={value.length} limit={limit} />
+        <div className="flex items-center gap-1">
+          <CharacterCounter current={value.length} limit={limit} />
+          <RegenFieldButton field={field} onRegenerateField={onRegenerateField} regeneratingField={regeneratingField} />
+        </div>
       </div>
       <p className={`text-sm bg-muted/40 rounded-lg p-2.5 leading-relaxed ${value.length > limit ? "border border-destructive" : ""}`}>{value}</p>
     </div>

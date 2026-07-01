@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { logError } from "@/lib/logger";
 import { exportToCSV } from "@/lib/export/csv";
 import { exportToJSON } from "@/lib/export/json";
 import { exportToPDF } from "@/lib/export/pdf";
@@ -12,6 +14,8 @@ export async function GET(
 ) {
   try {
     const { userId } = await requireAuth();
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
     const { id } = await params;
     const { searchParams } = new URL(req.url);
 
@@ -50,7 +54,7 @@ export async function GET(
     const filename = `adforge-${slug}-${date}`;
 
     if (format === "csv") {
-      const csv = exportToCSV({ name: project.name, variations });
+      const csv = exportToCSV({ name: project.name, landingUrl: project.brief?.landingUrl, variations });
       return new Response(csv, {
         headers: {
           "Content-Type": "text/csv",
@@ -86,6 +90,7 @@ export async function GET(
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("GET /api/projects/:id/export", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Export failed" } }, { status: 500 });
   }
 }

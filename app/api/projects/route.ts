@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { logError } from "@/lib/logger";
 
 const createSchema = z.object({
   name: z.string().min(1).max(100),
@@ -10,6 +12,8 @@ const createSchema = z.object({
 export async function GET(req: NextRequest) {
   try {
     const { userId } = await requireAuth();
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
     const { searchParams } = new URL(req.url);
 
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
@@ -72,6 +76,7 @@ export async function GET(req: NextRequest) {
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("GET /api/projects", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Failed to fetch projects" } }, { status: 500 });
   }
 }
@@ -79,6 +84,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await requireAuth();
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
     const body = await req.json();
     const parsed = createSchema.safeParse(body);
 
@@ -98,6 +105,7 @@ export async function POST(req: NextRequest) {
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("POST /api/projects", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Failed to create project" } }, { status: 500 });
   }
 }

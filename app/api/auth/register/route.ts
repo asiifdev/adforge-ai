@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
 import { hashPassword, signToken, setAuthCookie } from "@/lib/auth";
+import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
+import { logError } from "@/lib/logger";
 
 const schema = z.object({
   email: z.string().email("Invalid email address"),
@@ -10,6 +12,9 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(`auth:register:${clientIp(req)}`);
+  if (limited) return limited;
+
   try {
     const body = await req.json();
     const parsed = schema.safeParse(body);
@@ -43,7 +48,8 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.json({ user, token }, { status: 201 });
     res.cookies.set(cookie.name, cookie.value, cookie.options as Parameters<typeof res.cookies.set>[2]);
     return res;
-  } catch {
+  } catch (err) {
+    logError("POST /api/auth/register", err);
     return NextResponse.json(
       { error: { code: "INTERNAL_ERROR", message: "Registration failed" } },
       { status: 500 }

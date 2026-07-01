@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { logError } from "@/lib/logger";
 import { regenerateSingleVariation } from "@/lib/ai/generator";
 import { BriefInput } from "@/lib/validators/brief";
 import { Platform } from "@prisma/client";
@@ -11,7 +13,9 @@ export async function POST(
 ) {
   try {
     const { userId } = await requireAuth();
-    const { id, variationId } = await params;
+    const limited = enforceRateLimit(`user:${userId}`);
+    if (limited) return limited;
+    const { variationId } = await params;
 
     const variation = await prisma.variation.findFirst({
       where: { id: variationId, creativeSet: { project: { userId } } },
@@ -47,6 +51,7 @@ export async function POST(
     if (err instanceof Error && err.message === "UNAUTHORIZED") {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 });
     }
+    logError("POST /api/projects/:id/variations/:variationId/regenerate", err);
     return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Regeneration failed" } }, { status: 500 });
   }
 }

@@ -2,11 +2,15 @@
   "name": "adforge-ai",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.24.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "bash scripts/test-integration.sh",
     "db:migrate": "dotenv -e .env.local -- prisma migrate dev",
     "db:generate": "prisma generate",
     "db:studio": "dotenv -e .env.local -- prisma studio",
@@ -15,11 +19,11 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
-    "@auth/drizzle-adapter": "^1.11.2",
     "@base-ui/react": "^1.6.0",
     "@hookform/resolvers": "^5.4.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@prisma/client-runtime-utils": "7.8.0",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -59,6 +63,8 @@
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "7.1.8",
+    "vitest": "^4.1.9"
   }
 }

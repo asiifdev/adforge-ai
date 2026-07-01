@@ -39,7 +39,7 @@ Use Next.js 16 with the App Router and Server Actions.
 
 ## ADR-002: Drizzle ORM over Prisma
 
-**Status:** Accepted  
+**Status:** Superseded by ADR-008  
 **Date:** 2025-06-26
 
 ### Context
@@ -260,3 +260,31 @@ Implement email/password auth with JWTs signed using the `jose` library.
 - Token stored client-side in `httpOnly` cookie for security.
 - Password hashed with `bcryptjs` (10 rounds).
 - Middleware in `middleware.ts` validates JWT on protected routes.
+
+---
+
+## ADR-008: Pivot from Drizzle to Prisma ORM
+
+**Status:** Accepted  
+**Date:** 2026-07-01
+
+### Context
+
+ADR-002 selected Drizzle ORM. During implementation, the project pivoted to Prisma v7; the codebase (`prisma/schema.prisma`, `lib/db/client.ts`, every API route) has used Prisma exclusively since early development, and no Drizzle schema or client was ever shipped. This ADR records that pivot and supersedes ADR-002 so the docs describe what's actually running.
+
+### Decision
+
+Use Prisma v7 with `@prisma/adapter-pg` as the sole ORM.
+
+### Rationale
+
+- **Ecosystem maturity won out in practice**: Prisma's docs, error messages, and migration tooling (`prisma migrate dev`) reduced implementation time enough to outweigh Drizzle's no-codegen advantage from ADR-002.
+- **Edge/serverless concern was addressed, not avoided**: `@prisma/adapter-pg` (driver adapter) resolves the connection-pooling/cold-start concern ADR-002 raised about Prisma — the adapter lets Prisma run over a standard `pg` pool instead of its own connection engine.
+- **pnpm + codegen friction was solvable**: pnpm's strict symlinking broke Prisma's default generated-client resolution; fixed by setting `output = "../node_modules/.prisma/client"` in `schema.prisma` and hoisting Prisma packages via `.npmrc` (`public-hoist-pattern[]=*prisma*`). This is a one-time setup cost, not an ongoing tax.
+- **JSONB and arrays**: Prisma's `Json` type and native Postgres array support (`Platform[]`, `String[]`) cover the same `variations.content` / `briefs.platforms` requirements ADR-002 attributed to Drizzle.
+
+### Consequences
+
+- ERD.md's "Drizzle ORM Schema Notes" section is stale and superseded by `prisma/schema.prisma`, which is the single source of truth for schema going forward.
+- Migrations are managed via `prisma migrate dev` (dev) / `prisma migrate deploy` (prod), not `drizzle-kit`.
+- Content JSONB fields are still validated with Zod at the application layer (`lib/validators/variation.ts`) — this part of ADR-002's design was unaffected by the ORM swap.
