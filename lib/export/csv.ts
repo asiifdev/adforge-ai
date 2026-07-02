@@ -70,7 +70,7 @@ function buildGenericRows(variations: Variation[]): Record<string, string>[] {
             return [
               ["Headline", c.headline],
               ["Body Text", c.bodyText],
-              ["Thumbnail Description", c.thumbnailDescription],
+              ["Branding Text", c.brandingText],
             ];
           })();
 

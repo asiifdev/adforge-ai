@@ -151,6 +151,7 @@ CREATE TABLE variations (
   label           TEXT CHECK (label IN ('A', 'B', 'C', 'D') OR label IS NULL),
   notes           TEXT,
   position        INTEGER NOT NULL DEFAULT 0,
+  deleted_at      TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -196,14 +197,16 @@ Taboola:
 {
   "headline": "string",
   "body_text": "string",
-  "thumbnail_description": "string"
+  "branding_text": "string"
 }
 ```
+(An earlier revision of this schema had a `thumbnail_description` field capped at 150 chars — that field does not correspond to anything in Taboola's real ad spec and has been corrected to `branding_text`, max 30 chars, matching Taboola's actual "Branding Text" field.)
 
 **Constraints:**
 - `content` validated at application layer before insert
 - `label` is nullable (no label assigned)
 - Partial index on `is_favorite` for performance on starred filter
+- `deleted_at` is nullable; a non-null value marks the row as soft-deleted. All reads (lists, counts, exports, regeneration lookups) filter `deleted_at IS NULL` — soft-deleted variations are excluded everywhere except direct DB inspection.
 
 ---
 
@@ -227,6 +230,29 @@ CREATE TABLE generation_logs (
 CREATE INDEX idx_generation_logs_project ON generation_logs(project_id);
 CREATE INDEX idx_generation_logs_created ON generation_logs(created_at DESC);
 ```
+
+---
+
+### `rate_limits`
+
+Backs the API rate limiter (`lib/rate-limit.ts`). Using a table instead of an in-process
+Map means the counter survives restarts and is shared correctly across every serverless
+invocation or container instance hitting the same database — an in-memory limiter would
+reset on every cold start and wouldn't be shared across instances.
+
+```sql
+CREATE TABLE rate_limits (
+  id           TEXT PRIMARY KEY,
+  key          TEXT NOT NULL UNIQUE,
+  window_start TIMESTAMP(3) NOT NULL,
+  count        INTEGER NOT NULL DEFAULT 0
+);
+```
+
+**Notes:**
+- `key` identifies the thing being limited (e.g. `user:<id>`, `generate:<id>`, `auth:login:<ip>`).
+- Each check is a single atomic upsert (`INSERT ... ON CONFLICT ... DO UPDATE`), so concurrent requests for the same key can't race each other.
+- No FK relationships; this table is infrastructure, not domain data.
 
 ---
 

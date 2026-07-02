@@ -9,7 +9,7 @@ const JWT_SECRET = new TextEncoder().encode(jwtSecretValue);
 
 const PUBLIC_PATHS = ["/login", "/register", "/api/auth/login", "/api/auth/register"];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {

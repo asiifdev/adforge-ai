@@ -71,7 +71,7 @@ describe("exportToCSV — TikTok/Taboola generic format", () => {
       content: {
         headline: "You won't believe this",
         bodyText: "Full body copy here",
-        thumbnailDescription: "A surprised face",
+        brandingText: "MyBrand",
       },
     });
 
@@ -79,7 +79,7 @@ describe("exportToCSV — TikTok/Taboola generic format", () => {
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
 
     expect(parsed.data).toHaveLength(3);
-    expect(parsed.data.map((r) => r["Field Name"])).toEqual(["Headline", "Body Text", "Thumbnail Description"]);
+    expect(parsed.data.map((r) => r["Field Name"])).toEqual(["Headline", "Body Text", "Branding Text"]);
     expect(parsed.data[0]["Platform"]).toBe("Taboola");
   });
 });

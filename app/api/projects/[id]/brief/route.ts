@@ -4,7 +4,7 @@ import { requireAuth } from "@/lib/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { logError } from "@/lib/logger";
 import { briefSchema } from "@/lib/validators/brief";
-import { Platform, CampaignGoal, CampaignTone } from "@prisma/client";
+import { Platform, CampaignGoal, CampaignTone, CampaignLanguage } from "@prisma/client";
 
 export async function GET(
   _req: NextRequest,
@@ -12,7 +12,7 @@ export async function GET(
 ) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const { id } = await params;
 
@@ -42,7 +42,7 @@ export async function POST(
 ) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const { id } = await params;
 
@@ -75,6 +75,7 @@ export async function POST(
         budgetRange: data.budgetRange || null,
         platforms: data.platforms as Platform[],
         variationsPerPlatform: data.variationsPerPlatform,
+        language: data.language as CampaignLanguage,
       },
       update: {
         productName: data.productName,
@@ -86,6 +87,7 @@ export async function POST(
         budgetRange: data.budgetRange || null,
         platforms: data.platforms as Platform[],
         variationsPerPlatform: data.variationsPerPlatform,
+        language: data.language as CampaignLanguage,
       },
     });
 

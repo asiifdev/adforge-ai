@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { logError } from "@/lib/logger";
-import { regenerateSingleField } from "@/lib/ai/generator";
+import { regenerateSingleField, getFieldMaxLength, coerceToMaxLength } from "@/lib/ai/generator";
 import { BriefInput } from "@/lib/validators/brief";
 import { Platform } from "@prisma/client";
 
@@ -36,12 +36,12 @@ export async function POST(
 ) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const { variationId } = await params;
 
     const variation = await prisma.variation.findFirst({
-      where: { id: variationId, creativeSet: { project: { userId } } },
+      where: { id: variationId, deletedAt: null, creativeSet: { project: { userId } } },
       include: { creativeSet: { include: { brief: true } } },
     });
 
@@ -66,14 +66,18 @@ export async function POST(
       budgetRange: briefData.budgetRange ?? undefined,
       platforms: briefData.platforms as BriefInput["platforms"],
       variationsPerPlatform: briefData.variationsPerPlatform,
+      language: briefData.language as BriefInput["language"],
     };
 
-    const value = await regenerateSingleField(
+    const rawValue = await regenerateSingleField(
       brief,
       variation.platform as Platform,
       parsed.data.field,
       variation.content
     );
+
+    const maxLength = getFieldMaxLength(variation.platform as Platform, parsed.data.field);
+    const value = maxLength ? coerceToMaxLength(rawValue, maxLength) : rawValue;
 
     const updatedContent = applyFieldToContent(variation.content, parsed.data.field, value);
     await prisma.variation.update({

@@ -1,7 +1,15 @@
 import { BriefInput } from "@/lib/validators/brief";
 
-export function getGoogleSystemPrompt(): string {
+function languageInstruction(language: BriefInput["language"]): string {
+  return language === "indonesian"
+    ? "Write all ad copy in Bahasa Indonesia (Indonesian). Do not mix in English. Bahasa Indonesia phrasing is often longer than English for the same meaning — count characters carefully and leave margin under each limit. Never write a phrase that would need mid-word cutting to fit; if a sentence is too long, rephrase it shorter instead of trimming it."
+    : "Write all ad copy in English.";
+}
+
+export function getGoogleSystemPrompt(language: BriefInput["language"]): string {
   return `You are an expert Google Ads copywriter specializing in Responsive Search Ads (RSA).
+
+${languageInstruction(language)}
 
 CRITICAL RULES — violating any of these will cause the ad to be rejected:
 - Generate exactly 15 UNIQUE headlines. Each headline MUST be 30 characters or fewer (including spaces).
@@ -45,6 +53,7 @@ Description: ${brief.description}
 Target Audience: ${brief.targetAudience}
 Campaign Goal: ${brief.goal}
 Tone: ${brief.tone}
+Language: ${brief.language === "indonesian" ? "Indonesian (Bahasa Indonesia)" : "English"}
 ${brief.landingUrl ? `Landing Page: ${brief.landingUrl}` : ""}
 ${brief.budgetRange ? `Budget: ${brief.budgetRange}` : ""}
 

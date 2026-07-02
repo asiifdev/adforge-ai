@@ -1,12 +1,20 @@
 import { BriefInput } from "@/lib/validators/brief";
 
-export function getTaboolaSystemPrompt(): string {
+function languageInstruction(language: BriefInput["language"]): string {
+  return language === "indonesian"
+    ? "Write all ad copy in Bahasa Indonesia (Indonesian). Do not mix in English. Bahasa Indonesia phrasing is often longer than English for the same meaning — count characters carefully and leave margin under each limit. Never write a phrase that would need mid-word cutting to fit; if a sentence is too long, rephrase it shorter instead of trimming it."
+    : "Write all ad copy in English.";
+}
+
+export function getTaboolaSystemPrompt(language: BriefInput["language"]): string {
   return `You are an expert native advertising copywriter for Taboola and content discovery platforms.
+
+${languageInstruction(language)}
 
 CRITICAL RULES:
 - headline: Maximum 60 characters. Native-feel — reads like editorial content, not an ad.
 - body_text: Maximum 250 characters. Expands on the headline's curiosity gap.
-- thumbnail_description: Maximum 150 characters. Describe the ideal thumbnail image that would accompany this ad.
+- branding_text: Maximum 30 characters. The brand/company name as it should appear in the ad unit (Taboola's "Branding Text" field).
 
 HEADLINE STRATEGIES (native-feel, curiosity-gap driven):
 - Curiosity gap: "The [audience] Secret That [result]"
@@ -37,7 +45,7 @@ OUTPUT FORMAT — respond ONLY with valid JSON, no markdown:
     {
       "headline": "string (max 60 chars)",
       "body_text": "string (max 250 chars)",
-      "thumbnail_description": "string (max 150 chars)"
+      "branding_text": "string (max 30 chars)"
     }
   ]
 }`;
@@ -51,6 +59,7 @@ Description: ${brief.description}
 Target Audience: ${brief.targetAudience}
 Goal: ${brief.goal}
 Tone: ${brief.tone}
+Language: ${brief.language === "indonesian" ? "Indonesian (Bahasa Indonesia)" : "English"}
 ${brief.landingUrl ? `Destination: ${brief.landingUrl}` : ""}
 
 Generate exactly ${count} distinct native ad variations. Each must feel like genuine editorial content while driving curiosity about the offer. Use different headline strategies for each variation.`;

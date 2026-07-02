@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { requireAuth } from "@/lib/auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { logError } from "@/lib/logger";
-import { Platform, CampaignGoal, CampaignTone } from "@prisma/client";
+import { Platform, CampaignGoal, CampaignTone, CampaignLanguage } from "@prisma/client";
 
 export async function POST(
   _req: NextRequest,
@@ -11,7 +11,7 @@ export async function POST(
 ) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const { id } = await params;
 
@@ -45,6 +45,7 @@ export async function POST(
           budgetRange: source.brief.budgetRange,
           platforms: source.brief.platforms as Platform[],
           variationsPerPlatform: source.brief.variationsPerPlatform,
+          language: source.brief.language as CampaignLanguage,
         },
       });
     }

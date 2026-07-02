@@ -1,28 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const requests = new Map<string, { count: number; resetAt: number }>();
+import { prisma } from "@/lib/db/client";
 
 const WINDOW_MS = 60_000;
 export const DEFAULT_RATE_LIMIT = 100;
 
-export function checkRateLimit(
+type RateLimitRow = { count: number; window_start: Date };
+
+// Backed by the `rate_limits` table (not an in-memory Map) so the counter survives
+// process restarts and is shared across every serverless invocation / container
+// instance hitting the same Postgres database. The upsert is a single atomic
+// statement, so concurrent requests for the same key can't race each other.
+export async function checkRateLimit(
   key: string,
   limit: number
-): { allowed: boolean; remaining: number; resetAt: number } {
-  const now = Date.now();
-  const entry = requests.get(key);
+): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+  const rows = await prisma.$queryRaw<RateLimitRow[]>`
+    INSERT INTO rate_limits (id, key, window_start, count)
+    VALUES (gen_random_uuid()::text, ${key}, now(), 1)
+    ON CONFLICT (key) DO UPDATE SET
+      count = CASE
+        WHEN rate_limits.window_start < now() - interval '60 seconds' THEN 1
+        ELSE rate_limits.count + 1
+      END,
+      window_start = CASE
+        WHEN rate_limits.window_start < now() - interval '60 seconds' THEN now()
+        ELSE rate_limits.window_start
+      END
+    RETURNING count, window_start;
+  `;
 
-  if (!entry || now > entry.resetAt) {
-    requests.set(key, { count: 1, resetAt: now + WINDOW_MS });
-    return { allowed: true, remaining: limit - 1, resetAt: now + WINDOW_MS };
+  const row = rows[0];
+  const resetAt = row.window_start.getTime() + WINDOW_MS;
+
+  if (row.count > limit) {
+    return { allowed: false, remaining: 0, resetAt };
   }
 
-  if (entry.count >= limit) {
-    return { allowed: false, remaining: 0, resetAt: entry.resetAt };
-  }
-
-  entry.count++;
-  return { allowed: true, remaining: limit - entry.count, resetAt: entry.resetAt };
+  return { allowed: true, remaining: limit - row.count, resetAt };
 }
 
 function rateLimitResponse(limit: number, remaining: number, resetAt: number): NextResponse {
@@ -43,8 +57,11 @@ function rateLimitResponse(limit: number, remaining: number, resetAt: number): N
  * Enforces a rate limit for `key`. Returns a 429 NextResponse to short-circuit
  * with if the limit was exceeded, or null if the caller may proceed.
  */
-export function enforceRateLimit(key: string, limit: number = DEFAULT_RATE_LIMIT): NextResponse | null {
-  const { allowed, remaining, resetAt } = checkRateLimit(key, limit);
+export async function enforceRateLimit(
+  key: string,
+  limit: number = DEFAULT_RATE_LIMIT
+): Promise<NextResponse | null> {
+  const { allowed, remaining, resetAt } = await checkRateLimit(key, limit);
   if (!allowed) return rateLimitResponse(limit, remaining, resetAt);
   return null;
 }

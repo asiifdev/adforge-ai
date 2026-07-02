@@ -21,7 +21,7 @@ export async function GET(
 ) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const { id } = await params;
     const project = await prisma.project.findFirst({
@@ -35,7 +35,7 @@ export async function GET(
 
     const variationCounts = await prisma.variation.groupBy({
       by: ["platform"],
-      where: { creativeSet: { projectId: id } },
+      where: { deletedAt: null, creativeSet: { projectId: id } },
       _count: true,
     });
 
@@ -67,7 +67,7 @@ export async function PATCH(
 ) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const { id } = await params;
     const project = await getProjectForUser(id, userId);
@@ -104,7 +104,7 @@ export async function DELETE(
 ) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const { id } = await params;
     const project = await getProjectForUser(id, userId);

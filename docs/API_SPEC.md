@@ -361,9 +361,9 @@ data: {"message": "string", "platform": "google (optional)"}
   "id": "uuid",
   "platform": "meta",
   "content": {
-    "primary_text": "string",
-    "headline": "string",
-    "description": "string",
+    "primary_text": "string (≤125 chars)",
+    "headline": "string (≤40 chars)",
+    "description": "string (≤25 chars)",
     "call_to_action": "Shop Now|Learn More|Sign Up|Get Offer|Book Now"
   }
 }
@@ -391,7 +391,7 @@ data: {"message": "string", "platform": "google (optional)"}
   "content": {
     "headline": "string (≤60 chars)",
     "body_text": "string (≤250 chars)",
-    "thumbnail_description": "string (≤150 chars)"
+    "branding_text": "string (≤30 chars)"
   }
 }
 ```
@@ -501,7 +501,9 @@ Update variation metadata (star, label, notes).
 
 ### DELETE /api/projects/:id/variations/:variationId
 
-Delete a variation.
+Soft-deletes a variation (sets `deleted_at`; the row is retained in the database
+but excluded from all reads — lists, counts, exports, regenerate/regenerate-field
+lookups). It disappears from the UI immediately but is not physically removed.
 
 **Response 200:**
 ```json
@@ -509,7 +511,7 @@ Delete a variation.
 ```
 
 **Errors:**
-- `404` — Variation not found
+- `404` — Variation not found (also returned for an already soft-deleted variation)
 
 ---
 
@@ -567,3 +569,4 @@ All error responses use this schema:
 - Generation endpoint: 10 requests/minute per user
 - All other endpoints: 100 requests/minute per user
 - Headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+- Backed by the `rate_limits` Postgres table (see ERD.md), not in-process memory — the limit is enforced correctly across server restarts and multiple concurrent instances/serverless invocations.

@@ -3,7 +3,7 @@ import { clearAuthCookie } from "@/lib/auth";
 import { enforceRateLimit, clientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
-  const limited = enforceRateLimit(`auth:logout:${clientIp(req)}`);
+  const limited = await enforceRateLimit(`auth:logout:${clientIp(req)}`);
   if (limited) return limited;
 
   const cookie = clearAuthCookie();

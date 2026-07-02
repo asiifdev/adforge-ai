@@ -55,6 +55,7 @@ model Brief {
   budgetRange           String?       @map("budget_range")
   platforms             Platform[]
   variationsPerPlatform Int           @default(5) @map("variations_per_platform")
+  language              CampaignLanguage @default(english) @map("language")
   createdAt             DateTime      @default(now()) @map("created_at")
   updatedAt             DateTime      @updatedAt @map("updated_at")
   project               Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -83,6 +84,11 @@ enum Platform {
   taboola
 }
 
+enum CampaignLanguage {
+  english
+  indonesian
+}
+
 model CreativeSet {
   id          String      @id @default(uuid())
   projectId   String      @map("project_id")
@@ -107,13 +113,14 @@ model Variation {
   label         VariationLabel?
   notes         String?
   position      Int             @default(0)
+  deletedAt     DateTime?       @map("deleted_at")
   createdAt     DateTime        @default(now()) @map("created_at")
   updatedAt     DateTime        @updatedAt @map("updated_at")
   creativeSet   CreativeSet     @relation(fields: [creativeSetId], references: [id], onDelete: Cascade)
 
   @@index([creativeSetId])
   @@index([creativeSetId, platform])
-  @@index([creativeSetId, isFavorite])
+  @@index([content], type: Gin)
   @@map("variations")
 }
 
@@ -145,4 +152,13 @@ enum GenerationLogStatus {
   success
   error
   partial
+}
+
+model RateLimit {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  windowStart DateTime @map("window_start")
+  count       Int      @default(0)
+
+  @@map("rate_limits")
 }

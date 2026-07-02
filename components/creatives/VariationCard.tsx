@@ -18,8 +18,8 @@ import type { GoogleContent, MetaContent, TikTokContent, TaboolaContent } from "
 
 const CHAR_LIMITS: Record<string, Record<string, number>> = {
   google: { headline: 30, description: 90 },
-  meta: { primaryText: 125, headline: 40, description: 30 },
-  taboola: { headline: 60, bodyText: 250, thumbnailDescription: 150 },
+  meta: { primaryText: 125, headline: 40, description: 25 },
+  taboola: { headline: 60, bodyText: 250, brandingText: 30 },
 };
 
 const PLATFORM_STYLE: Record<string, { header: string; dot: string; label: string }> = {
@@ -405,7 +405,7 @@ function VariationContent({
       <div className="space-y-2.5 text-sm">
         <FieldRow label="Headline" value={c.headline} limit={60} field="headline" {...regenProps} />
         <ContentBlock label="Body" value={c.bodyText} limit={250} field="bodyText" {...regenProps} />
-        <ContentBlock label="Thumbnail" value={c.thumbnailDescription} field="thumbnailDescription" {...regenProps} italic />
+        <ContentBlock label="Branding Text" value={c.brandingText} field="brandingText" {...regenProps} />
       </div>
     );
   }
@@ -492,7 +492,7 @@ function formatContentForClipboard(platform: string, content: unknown): string {
     return [
       `Headline: ${c.headline}`,
       `Body: ${c.bodyText}`,
-      `Thumbnail: ${c.thumbnailDescription}`,
+      `Branding Text: ${c.brandingText}`,
     ].join("\n");
   }
   return JSON.stringify(content, null, 2);

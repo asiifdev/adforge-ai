@@ -19,7 +19,7 @@ export async function POST(
     return new Response(JSON.stringify({ error: "UNAUTHORIZED" }), { status: 401 });
   }
 
-  const { allowed, remaining, resetAt } = checkRateLimit(`generate:${userId}`, 10);
+  const { allowed, remaining, resetAt } = await checkRateLimit(`generate:${userId}`, 10);
   if (!allowed) {
     return new Response(
       JSON.stringify({ error: { code: "RATE_LIMITED", message: "Too many requests. Try again in a minute." } }),
@@ -59,6 +59,7 @@ export async function POST(
     budgetRange: project.brief.budgetRange ?? undefined,
     platforms: platforms as BriefInput["platforms"],
     variationsPerPlatform: project.brief.variationsPerPlatform,
+    language: project.brief.language as BriefInput["language"],
   };
 
   const start = Date.now();

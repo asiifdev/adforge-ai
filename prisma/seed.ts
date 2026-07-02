@@ -223,7 +223,7 @@ async function main() {
         primaryText:
           "Stop overpaying for gym clothes. FlashWear gives you premium athletic wear at 40% below what you'd pay at big brands — free shipping included.",
         headline: "Premium Gym Wear, 40% Off",
-        description: "Free shipping on $50+ orders",
+        description: "Free shipping over $50",
         callToAction: "Shop Now",
       },
     },
@@ -249,7 +249,7 @@ async function main() {
         primaryText:
           "Summer sale is LIVE. FlashWear athletic wear up to 40% off — performance fabrics, modern fits, sizes for every body. Free shipping on orders over $50.",
         headline: "Summer Sale — Up to 40% Off",
-        description: "Limited stock. Order today.",
+        description: "Limited stock — order now",
         callToAction: "Shop Now",
       },
     },
@@ -407,8 +407,7 @@ async function main() {
         headline: "Why Doctors Are Rethinking Multivitamins",
         bodyText:
           "A growing number of nutritionists say traditional multivitamins miss the mark. PureVitals Daily Greens packs 47 organic superfoods into one morning scoop — and the results are turning heads.",
-        thumbnailDescription:
-          "Close-up of green superfood powder in a glass jar, morning sunlight, clean white kitchen background, health-focused lifestyle",
+        brandingText: "PureVitals",
       },
     },
     {
@@ -420,8 +419,7 @@ async function main() {
         headline: "The 30-Second Morning Habit Changing Health",
         bodyText:
           "Busy professionals are ditching complicated supplement stacks for one simple switch. PureVitals Daily Greens delivers 47 organic ingredients in a single morning scoop. Subscribe and save 30%.",
-        thumbnailDescription:
-          "Young professional adding green powder to a glass of water at kitchen counter, morning light, clean and minimal aesthetic",
+        brandingText: "PureVitals",
       },
     },
   ];

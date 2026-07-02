@@ -10,6 +10,7 @@ async function getVariationForUser(variationId: string, userId: string) {
   return prisma.variation.findFirst({
     where: {
       id: variationId,
+      deletedAt: null,
       creativeSet: { project: { userId } },
     },
   });
@@ -21,7 +22,7 @@ export async function PATCH(
 ) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const { variationId } = await params;
 
@@ -61,7 +62,7 @@ export async function DELETE(
 ) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const { variationId } = await params;
 
@@ -70,7 +71,7 @@ export async function DELETE(
       return NextResponse.json({ error: { code: "NOT_FOUND", message: "Variation not found" } }, { status: 404 });
     }
 
-    await prisma.variation.delete({ where: { id: variationId } });
+    await prisma.variation.update({ where: { id: variationId }, data: { deletedAt: new Date() } });
     return NextResponse.json({ success: true });
   } catch (err) {
     if (err instanceof Error && err.message === "UNAUTHORIZED") {

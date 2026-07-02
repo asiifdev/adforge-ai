@@ -13,12 +13,12 @@ export async function POST(
 ) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const { variationId } = await params;
 
     const variation = await prisma.variation.findFirst({
-      where: { id: variationId, creativeSet: { project: { userId } } },
+      where: { id: variationId, deletedAt: null, creativeSet: { project: { userId } } },
       include: { creativeSet: { include: { brief: true } } },
     });
 
@@ -37,6 +37,7 @@ export async function POST(
       budgetRange: briefData.budgetRange ?? undefined,
       platforms: briefData.platforms as BriefInput["platforms"],
       variationsPerPlatform: briefData.variationsPerPlatform,
+      language: briefData.language as BriefInput["language"],
     };
 
     const newContent = await regenerateSingleVariation(brief, variation.platform as Platform);

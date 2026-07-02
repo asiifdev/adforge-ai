@@ -11,7 +11,7 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const limited = enforceRateLimit(`auth:login:${clientIp(req)}`);
+  const limited = await enforceRateLimit(`auth:login:${clientIp(req)}`);
   if (limited) return limited;
 
   try {

@@ -56,6 +56,7 @@ export default function BriefForm({ projectId, initialBrief }: Props) {
     defaultValues: initialBrief ?? {
       variationsPerPlatform: 5,
       platforms: ["google", "meta"],
+      language: "english",
     },
   });
 
@@ -167,7 +168,7 @@ export default function BriefForm({ projectId, initialBrief }: Props) {
             {errors.landingUrl && <p className="text-sm text-destructive">{errors.landingUrl.message}</p>}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Campaign Goal *</Label>
               <Controller
@@ -208,6 +209,28 @@ export default function BriefForm({ projectId, initialBrief }: Props) {
                 )}
               />
               {errors.tone && <p className="text-sm text-destructive">{errors.tone.message}</p>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Output Language *</Label>
+              <Controller
+                name="language"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="english">English</SelectItem>
+                      <SelectItem value="indonesian">Bahasa Indonesia</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.language && <p className="text-sm text-destructive">{errors.language.message}</p>}
             </div>
 
             <div className="space-y-2">

@@ -288,3 +288,29 @@ Use Prisma v7 with `@prisma/adapter-pg` as the sole ORM.
 - ERD.md's "Drizzle ORM Schema Notes" section is stale and superseded by `prisma/schema.prisma`, which is the single source of truth for schema going forward.
 - Migrations are managed via `prisma migrate dev` (dev) / `prisma migrate deploy` (prod), not `drizzle-kit`.
 - Content JSONB fields are still validated with Zod at the application layer (`lib/validators/variation.ts`) — this part of ADR-002's design was unaffected by the ORM swap.
+
+---
+
+## ADR-009: Post-Audit Hardening — Enforced Character Limits, Soft Delete, Postgres-Backed Rate Limiting
+
+**Status:** Accepted
+**Date:** 2026-07-02
+
+### Context
+
+A full audit against PRD/FRD/API_SPEC/ERD surfaced three gaps between documented behavior and actual code: (1) platform character limits existed only as prompt instructions with no enforcement in the Zod schemas or post-generation pipeline; (2) the Taboola `thumbnail_description` (150 chars) field didn't correspond to any real Taboola ad spec field; (3) variation delete was a hard `DELETE` despite FRD 4.3 documenting soft delete, and the rate limiter used an in-process `Map`, which resets on every restart and isn't shared across serverless instances or containers.
+
+### Decision
+
+- Enforce every platform's character limit in code, not just in the prompt: `lib/validators/variation.ts` Zod schemas now carry `.max()` constraints, and `lib/ai/generator.ts` truncates any AI output that exceeds them (via `coerceToMaxLength`) before it's validated and saved — matching FRD 2.3's "trims... violations" behavior instead of throwing or silently accepting overflow.
+- Correct the Taboola field to `branding_text` (max 30 chars), matching Taboola's real "Branding Text" field, replacing the fictitious `thumbnail_description` (150 chars).
+- Correct Meta's `description` limit to 25 chars (Meta's actual recommended length) and reframe the Meta limits generally as app-enforced "recommended lengths" rather than hard platform maximums, since Meta's real API accepts far more.
+- Add `Variation.deletedAt`; the `DELETE /variations/:id` route now sets it instead of removing the row, and every variation read (lists, counts, exports, regenerate lookups) filters `deletedAt: null`.
+- Replace the in-memory rate limiter with one backed by a new `rate_limits` Postgres table, using an atomic upsert (`INSERT ... ON CONFLICT ... DO UPDATE`) so the counter is correct under concurrent requests and shared across every process/instance hitting the same database.
+- Add a GIN index on `variations.content` and change the favorites index to a partial index (`WHERE is_favorite = TRUE`), both already specified in ERD.md but missing from the shipped `schema.prisma`.
+
+### Consequences
+
+- `lib/rate-limit.ts`'s public functions (`checkRateLimit`, `enforceRateLimit`) are now `async`; every route handler call site was updated to `await` them.
+- The Prisma DSL has no partial-index syntax, so the favorites index is created via a hand-edited raw SQL line in the migration rather than a `@@index` schema attribute.
+- `lib/rate-limit.test.ts` (in-memory unit test) was replaced by `tests/integration/rate-limit.integration.test.ts`, since the limiter's behavior can now only be verified against a real Postgres connection.

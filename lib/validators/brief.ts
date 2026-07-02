@@ -32,6 +32,7 @@ export const briefSchema = z.object({
     .int()
     .min(3, "Minimum 3 variations")
     .max(10, "Maximum 10 variations"),
+  language: z.enum(["english", "indonesian"]),
 });
 
 export type BriefInput = z.infer<typeof briefSchema>;

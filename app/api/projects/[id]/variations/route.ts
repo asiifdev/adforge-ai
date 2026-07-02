@@ -11,7 +11,7 @@ export async function GET(
 ) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const { id } = await params;
     const { searchParams } = new URL(req.url);
@@ -27,6 +27,7 @@ export async function GET(
 
     const variations = await prisma.variation.findMany({
       where: {
+        deletedAt: null,
         creativeSet: { projectId: id },
         ...(platform && { platform }),
         ...(isFavorite !== null && { isFavorite: isFavorite === "true" }),

@@ -98,7 +98,7 @@ export async function exportToPDF(payload: PDFPayload): Promise<Uint8Array> {
         const c = content as unknown as TaboolaContent;
         addText(`Headline (${c.headline.length}/60): ${c.headline}`, 9);
         addText(`Body: ${c.bodyText}`, 9);
-        addText(`Thumbnail: ${c.thumbnailDescription}`, 9);
+        addText(`Branding Text: ${c.brandingText}`, 9);
       }
 
       if (variation.notes) {

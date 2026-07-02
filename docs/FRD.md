@@ -78,12 +78,12 @@ Multi-select UI — user can select any combination of the four platforms. At le
 
 3 complete ad variants generated, each containing:
 
-| Field | Character Limit | Notes |
+| Field | Recommended Length | Notes |
 |---|---|---|
-| primary_text | 125 chars | First line must hook the scroll |
-| headline | 40 chars | Below creative image/video |
-| description | 30 chars | Optional but displayed on desktop |
-| call_to_action | — | Enum: Shop Now, Learn More, Sign Up, Get Offer, Book Now |
+| primary_text | 125 chars | Meta truncates ("See More") beyond this on mobile; the API itself accepts far more (up to ~2,200 chars), so this is an app-enforced display-optimized length, not a hard platform limit |
+| headline | 40 chars | Below creative image/video; recommended length varies by placement (e.g. ~27 chars for Facebook Feed) |
+| description | 25 chars | Optional supporting text, only reliably rendered in a few placements (Marketplace, Search Results, In-Stream Video, Audience Network) |
+| call_to_action | — | Enum: Shop Now, Learn More, Sign Up, Get Offer, Book Now (a subset of Meta's full CTA button list) |
 
 #### TikTok Ads
 
@@ -98,13 +98,15 @@ Video-first format. Content written for spoken delivery:
 
 No hard character limit — but system enforces approximate word counts per time segment (~3 words/second for spoken content).
 
+**Note:** these four fields are creative-script pacing guidance for the spoken-delivery format, not official TikTok Ads Manager text-field limits. TikTok's actual platform-enforced text fields (e.g. ad caption, ~100 chars with display truncation around 50–60 chars; brand/app name, 2–20 chars) are a separate, out-of-scope concern for this tool.
+
 #### Taboola
 
 | Field | Character Limit | Notes |
 |---|---|---|
 | headline | 60 chars | Curiosity gap, native-feel |
-| body_text | 250 chars | Expands on headline |
-| thumbnail_description | 150 chars | Brief for image selection |
+| body_text | 250 chars | Expands on headline (maps to Taboola's "Description" field) |
+| branding_text | 30 chars | Brand/company name as it should appear in the ad unit — matches Taboola's real "Branding Text" field (an earlier "thumbnail_description, 150 chars" field in this doc did not correspond to any real Taboola field and has been corrected) |
 
 ### 2.3 Real-Time Character Counter
 

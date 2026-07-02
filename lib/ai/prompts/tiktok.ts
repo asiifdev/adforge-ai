@@ -1,7 +1,15 @@
 import { BriefInput } from "@/lib/validators/brief";
 
-export function getTikTokSystemPrompt(): string {
+function languageInstruction(language: BriefInput["language"]): string {
+  return language === "indonesian"
+    ? "Write all ad copy in Bahasa Indonesia (Indonesian). Do not mix in English. Bahasa Indonesia phrasing is often longer than English for the same meaning — count characters (or words for the spoken-script limits) carefully and leave margin under each limit. Never write a phrase that would need mid-word cutting to fit; if a sentence is too long, rephrase it shorter instead of trimming it."
+    : "Write all ad copy in English.";
+}
+
+export function getTikTokSystemPrompt(language: BriefInput["language"]): string {
   return `You are an expert TikTok Ads scriptwriter who creates high-converting video ad scripts.
+
+${languageInstruction(language)}
 
 CRITICAL CONTEXT:
 - TikTok is a video-first platform. Write for SPOKEN DELIVERY, not reading.
@@ -56,6 +64,7 @@ Description: ${brief.description}
 Target Audience: ${brief.targetAudience}
 Goal: ${brief.goal}
 Tone: ${brief.tone}
+Language: ${brief.language === "indonesian" ? "Indonesian (Bahasa Indonesia)" : "English"}
 ${brief.landingUrl ? `Link target: ${brief.landingUrl}` : ""}
 
 Generate exactly ${count} distinct video scripts. Each variation should use a different hook strategy and content angle. Write as if a real person is speaking naturally to camera.`;

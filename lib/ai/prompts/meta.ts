@@ -1,12 +1,20 @@
 import { BriefInput } from "@/lib/validators/brief";
 
-export function getMetaSystemPrompt(): string {
+function languageInstruction(language: BriefInput["language"]): string {
+  return language === "indonesian"
+    ? "Write all ad copy in Bahasa Indonesia (Indonesian). Do not mix in English. Bahasa Indonesia phrasing is often longer than English for the same meaning — count characters carefully and leave margin under each limit. Never write a phrase that would need mid-word cutting to fit; if a sentence is too long, rephrase it shorter instead of trimming it."
+    : "Write all ad copy in English.";
+}
+
+export function getMetaSystemPrompt(language: BriefInput["language"]): string {
   return `You are an expert Meta (Facebook/Instagram) Ads copywriter.
+
+${languageInstruction(language)}
 
 CRITICAL RULES:
 - primary_text: Maximum 125 characters. The first line must be a scroll-stopping hook.
 - headline: Maximum 40 characters. Shown below the image/video.
-- description: Maximum 30 characters. Optional supporting text.
+- description: Maximum 25 characters. Optional supporting text (recommended length — only reliably shown in a few placements).
 - call_to_action: Must be one of: "Shop Now", "Learn More", "Sign Up", "Get Offer", "Book Now"
 
 PRIMARY TEXT STRATEGY:
@@ -30,7 +38,7 @@ OUTPUT FORMAT — respond ONLY with valid JSON, no markdown:
     {
       "primary_text": "string (max 125 chars)",
       "headline": "string (max 40 chars)",
-      "description": "string (max 30 chars)",
+      "description": "string (max 25 chars)",
       "call_to_action": "Shop Now"
     },
     { ... },
@@ -53,6 +61,7 @@ Description: ${brief.description}
 Target Audience: ${brief.targetAudience}
 Campaign Objective: ${goalMap[brief.goal]}
 Tone: ${brief.tone}
+Language: ${brief.language === "indonesian" ? "Indonesian (Bahasa Indonesia)" : "English"}
 ${brief.landingUrl ? `Landing Page: ${brief.landingUrl}` : ""}
 ${brief.budgetRange ? `Budget context: ${brief.budgetRange}` : ""}
 

@@ -12,7 +12,7 @@ const createSchema = z.object({
 export async function GET(req: NextRequest) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const { searchParams } = new URL(req.url);
 
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     const variationCounts = await Promise.all(
       projects.map(async (p) => {
         const count = await prisma.variation.count({
-          where: { creativeSet: { projectId: p.id } },
+          where: { deletedAt: null, creativeSet: { projectId: p.id } },
         });
         return { id: p.id, count };
       })
@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await requireAuth();
-    const limited = enforceRateLimit(`user:${userId}`);
+    const limited = await enforceRateLimit(`user:${userId}`);
     if (limited) return limited;
     const body = await req.json();
     const parsed = createSchema.safeParse(body);

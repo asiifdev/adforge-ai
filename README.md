@@ -10,11 +10,11 @@ AdForge AI eliminates the copy bottleneck in performance marketing. You enter a 
 
 **Platform-specific outputs:**
 - **Google Ads RSA:** 15 headlines (≤30 chars each) + 4 descriptions (≤90 chars each) — ready for Ads Editor import
-- **Meta Ads:** 3 complete variants with primary text (≤125 chars), headline (≤40 chars), description (≤30 chars), and CTA
+- **Meta Ads:** 3 complete variants with primary text (≤125 chars), headline (≤40 chars), description (≤25 chars), and CTA
 - **TikTok Ads:** Hook/body/CTA scripts written for spoken delivery with on-screen text suggestions
-- **Taboola:** Native-feel curiosity-gap headlines (≤60 chars) with body and thumbnail descriptions
+- **Taboola:** Native-feel curiosity-gap headlines (≤60 chars), body text (≤250 chars), and branding text (≤30 chars) — matching Taboola's actual "Branding Text" ad field
 
-Every variation appears in real-time via streaming as it's generated. You can star favorites, assign A/B/C/D labels, add internal notes, compare two variations side-by-side, and export directly to CSV (formatted for Google Ads Editor and Meta Ads Manager), JSON, or PDF.
+Every variation appears in real-time via streaming as it's generated. You can star favorites, assign A/B/C/D labels, add internal notes, compare two variations side-by-side, and export directly to CSV (formatted for Google Ads Editor and Meta Ads Manager), JSON, or PDF. Every character limit above is enforced in code, not just requested in the AI prompt — see "Built to survive an audit" below.
 
 ---
 
@@ -50,6 +50,20 @@ Train a model on performance data to predict expected CTR or conversion rate bef
 
 **5. Image brief generator**
 Given the winning ad copy angles, generate detailed briefs for image/video creative teams: describe the ideal visual, scene, emotion, and CTA placement — bridging the gap between copy and creative production.
+
+---
+
+## Built to survive an audit
+
+Before this submission, I ran a full audit of the codebase against its own PRD/FRD/API_SPEC/ERD — comparing documented behavior to what the code actually did, and fact-checking every platform character limit against Google, Meta, TikTok, and Taboola's current official specs (not assumptions). It surfaced real gaps, and I fixed them:
+
+- **Character limits are now enforced in code, not just requested in the AI prompt.** The Zod schemas that validate every generated variation carry real `.max()` constraints per platform, and the generator truncates any AI output that drifts over the limit before it's saved — so "guaranteed platform-compliant copy" is actually guaranteed, not just instructed.
+- **Corrected a real platform-spec error:** Taboola's ad unit has no "thumbnail description" field — I had one in the schema at 150 chars. It's now `branding_text` at 30 chars, matching Taboola's actual "Branding Text" field. Meta's description limit was corrected from 30 to 25 chars, its real recommended length.
+- **Soft delete for variations**, so deleting a creative from the UI doesn't destroy data — it's recoverable at the DB level, matching the original functional spec.
+- **Rate limiting backed by Postgres, not an in-memory Map** — the old approach would silently stop working on every server restart or across multiple instances. The new one is a single atomic upsert against a `rate_limits` table, verified to survive a process restart mid-window.
+- **GIN and partial indexes** on `variations.content` and `is_favorite`, matching what the ERD always specified but the shipped schema was missing.
+
+Full findings and the fixes are in `docs/ADR.md` (ADR-009) and reflected throughout `docs/FRD.md`, `docs/ERD.md`, and `docs/API_SPEC.md`.
 
 ---
 

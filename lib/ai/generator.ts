@@ -40,11 +40,24 @@ function coerceToLength(items: string[], length: number): string[] {
   return padded;
 }
 
+// The model reliably follows char-limit instructions in the prompt but not always
+// exactly — truncate any overflow here so the platform's character limit is a
+// guarantee enforced in code, not just a prompt instruction (FRD 2.3).
+// Cuts at the last word boundary within the limit (when there is one close enough
+// to the limit) so overflow doesn't produce a word chopped in half.
+export function coerceToMaxLength(value: unknown, max: number): string {
+  const str = typeof value === "string" ? value : "";
+  if (str.length <= max) return str;
+  const sliced = str.slice(0, max);
+  const lastSpace = sliced.lastIndexOf(" ");
+  return lastSpace > max * 0.6 ? sliced.slice(0, lastSpace) : sliced;
+}
+
 async function generateGoogleRSASet(brief: BriefInput): Promise<{ variation: unknown; tokensUsed: number }> {
   const response = await getOpenAIClient().chat.completions.create({
     model: DEFAULT_MODEL,
     messages: [
-      { role: "system", content: getGoogleSystemPrompt() },
+      { role: "system", content: getGoogleSystemPrompt(brief.language) },
       { role: "user", content: getGoogleUserPrompt(brief) },
     ],
     response_format: { type: "json_object" },
@@ -57,8 +70,8 @@ async function generateGoogleRSASet(brief: BriefInput): Promise<{ variation: unk
   const parsed = JSON.parse(raw);
 
   const validated = googleContentSchema.parse({
-    headlines: coerceToLength(parsed.headlines ?? [], 15),
-    descriptions: coerceToLength(parsed.descriptions ?? [], 4),
+    headlines: coerceToLength(parsed.headlines ?? [], 15).map((h) => coerceToMaxLength(h, 30)),
+    descriptions: coerceToLength(parsed.descriptions ?? [], 4).map((d) => coerceToMaxLength(d, 90)),
   });
 
   return { variation: validated, tokensUsed };
@@ -87,13 +100,13 @@ async function generateForPlatform(
   let userPrompt: string;
 
   if (platform === "meta") {
-    systemPrompt = getMetaSystemPrompt();
+    systemPrompt = getMetaSystemPrompt(brief.language);
     userPrompt = getMetaUserPrompt(brief, count);
   } else if (platform === "tiktok") {
-    systemPrompt = getTikTokSystemPrompt();
+    systemPrompt = getTikTokSystemPrompt(brief.language);
     userPrompt = getTikTokUserPrompt(brief, count);
   } else {
-    systemPrompt = getTaboolaSystemPrompt();
+    systemPrompt = getTaboolaSystemPrompt(brief.language);
     userPrompt = getTaboolaUserPrompt(brief, count);
   }
 
@@ -118,9 +131,9 @@ async function generateForPlatform(
     const validated = variationsRaw.slice(0, count).map((v: unknown) => {
       const item = v as Record<string, unknown>;
       return metaContentSchema.parse({
-        primaryText: item.primary_text,
-        headline: item.headline,
-        description: item.description,
+        primaryText: coerceToMaxLength(item.primary_text, 125),
+        headline: coerceToMaxLength(item.headline, 40),
+        description: coerceToMaxLength(item.description, 25),
         callToAction: item.call_to_action,
       });
     });
@@ -130,11 +143,14 @@ async function generateForPlatform(
   if (platform === "tiktok") {
     const validated = variationsRaw.slice(0, count).map((v: unknown) => {
       const item = v as Record<string, unknown>;
+      const onScreenText = Array.isArray(item.on_screen_text)
+        ? (item.on_screen_text as unknown[]).map((t) => coerceToMaxLength(t, 500))
+        : [];
       return tiktokContentSchema.parse({
-        hook: item.hook,
-        body: item.body,
-        cta: item.cta,
-        onScreenText: item.on_screen_text ?? [],
+        hook: coerceToMaxLength(item.hook, 500),
+        body: coerceToMaxLength(item.body, 500),
+        cta: coerceToMaxLength(item.cta, 500),
+        onScreenText,
       });
     });
     return { variations: validated, tokensUsed };
@@ -144,9 +160,9 @@ async function generateForPlatform(
   const validated = variationsRaw.slice(0, count).map((v: unknown) => {
     const item = v as Record<string, unknown>;
     return taboolaContentSchema.parse({
-      headline: item.headline,
-      bodyText: item.body_text,
-      thumbnailDescription: item.thumbnail_description,
+      headline: coerceToMaxLength(item.headline, 60),
+      bodyText: coerceToMaxLength(item.body_text, 250),
+      brandingText: coerceToMaxLength(item.branding_text, 30),
     });
   });
   return { variations: validated, tokensUsed };
@@ -183,6 +199,22 @@ export async function generateVariations(
   };
 }
 
+// Per-field character limits, keyed the same way regenerate-field's `field` param
+// arrives from the client. Used to enforce limits on single-field regeneration,
+// which writes directly to the content JSONB and bypasses the platform Zod schemas.
+const FIELD_MAX_LENGTH: Record<Platform, Record<string, number>> = {
+  google: { headline: 30, description: 90 },
+  meta: { primaryText: 125, headline: 40, description: 25 },
+  tiktok: { hook: 500, body: 500, cta: 500 },
+  taboola: { headline: 60, bodyText: 250, brandingText: 30 },
+};
+
+export function getFieldMaxLength(platform: Platform, field: string): number | undefined {
+  const arrayMatch = field.match(/^(headline|description)_\d+$/);
+  const key = arrayMatch ? arrayMatch[1] : field;
+  return FIELD_MAX_LENGTH[platform]?.[key];
+}
+
 export async function regenerateSingleVariation(
   brief: BriefInput,
   platform: Platform
@@ -210,7 +242,7 @@ export async function regenerateSingleField(
     messages: [
       {
         role: "system",
-        content: `You are an expert ${platform} ads copywriter. Rewrite only the requested field while keeping it consistent with the overall ad context. Respect all character limits.`,
+        content: `You are an expert ${platform} ads copywriter. Write in ${brief.language === "indonesian" ? "Bahasa Indonesia (Indonesian)" : "English"}. Rewrite only the requested field while keeping it consistent with the overall ad context. Respect all character limits.`,
       },
       { role: "user", content: `Brief context: ${JSON.stringify(brief)}\n\n${prompt}` },
     ],

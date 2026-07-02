@@ -12,7 +12,7 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const limited = enforceRateLimit(`auth:register:${clientIp(req)}`);
+  const limited = await enforceRateLimit(`auth:register:${clientIp(req)}`);
   if (limited) return limited;
 
   try {

@@ -33,6 +33,7 @@ export default async function BriefPage({
         budgetRange: project.brief.budgetRange ?? "",
         platforms: project.brief.platforms as BriefInput["platforms"],
         variationsPerPlatform: project.brief.variationsPerPlatform,
+        language: project.brief.language as BriefInput["language"],
       }
     : null;
 
