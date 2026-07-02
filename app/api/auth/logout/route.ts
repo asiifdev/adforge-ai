@@ -7,7 +7,11 @@ export async function POST(req: NextRequest) {
   if (limited) return limited;
 
   const cookie = clearAuthCookie();
-  const res = NextResponse.redirect(new URL("/", req.url), { status: 303 });
+  // Don't build the redirect target from req.url — behind the reverse proxy it
+  // can reflect the internal bind address (0.0.0.0:3103) instead of the public
+  // domain when Host/X-Forwarded-Host aren't forwarded correctly. The public
+  // URL is already known and trusted via env, so use that instead.
+  const res = NextResponse.redirect(new URL("/", process.env.NEXT_PUBLIC_APP_URL), { status: 303 });
   res.cookies.set(cookie.name, cookie.value, cookie.options as Parameters<typeof res.cookies.set>[2]);
   return res;
 }
