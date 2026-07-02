@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   if (limited) return limited;
 
   const cookie = clearAuthCookie();
-  const res = NextResponse.json({ success: true });
+  const res = NextResponse.redirect(new URL("/", req.url), { status: 303 });
   res.cookies.set(cookie.name, cookie.value, cookie.options as Parameters<typeof res.cookies.set>[2]);
   return res;
 }

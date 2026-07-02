@@ -12,7 +12,7 @@ const PUBLIC_PATHS = ["/login", "/register", "/api/auth/login", "/api/auth/regis
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  if (pathname === "/" || PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
