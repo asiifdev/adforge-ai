@@ -4,6 +4,15 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Produces a self-contained .next/standalone build for the production Dockerfile.
   output: "standalone",
+  // The reverse proxy in front of the production deployment forwards an
+  // incorrect (or missing) X-Forwarded-Host, which makes Next.js reject
+  // Server Actions as a CSRF mismatch (Origin: adforge.asiifdev.com vs.
+  // X-Forwarded-Host: localhost). Explicitly trust the public domain.
+  experimental: {
+    serverActions: {
+      allowedOrigins: ["adforge.asiifdev.com"],
+    },
+  },
   // A stray /Users/a/package-lock.json outside the repo makes Next.js
   // misdetect the workspace root; pin it to this project explicitly.
   turbopack: {
