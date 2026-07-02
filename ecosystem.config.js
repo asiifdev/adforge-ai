@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: "adforge-ai",
-      script: "node_modules/.bin/next",
+      script: "node_modules/next/dist/bin/next",
       args: "start -p 3103",
       cwd: __dirname,
       env: {
