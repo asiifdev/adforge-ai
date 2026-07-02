@@ -64,11 +64,23 @@ export async function POST(
 
   const start = Date.now();
 
+  // The browser can disconnect (tab closed, navigation, fetch aborted) while
+  // generation is still running server-side. Once that happens the runtime
+  // closes the controller on its own; any enqueue()/close() call after that
+  // throws ERR_INVALID_STATE. Track it so we stop pushing SSE frames (the
+  // DB writes themselves are unaffected and keep completing normally).
+  let closed = false;
+
   const stream = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder();
       const send = (event: string, data: unknown) => {
-        controller.enqueue(enc.encode(sse(event, data)));
+        if (closed) return;
+        try {
+          controller.enqueue(enc.encode(sse(event, data)));
+        } catch {
+          closed = true;
+        }
       };
 
       let totalSaved = 0;
@@ -168,8 +180,20 @@ export async function POST(
         const msg = err instanceof Error ? err.message : "Generation failed";
         send("error", { message: msg });
       } finally {
-        controller.close();
+        if (!closed) {
+          try {
+            controller.close();
+          } catch {
+            // Client already disconnected; nothing left to close.
+          }
+        }
       }
+    },
+    cancel() {
+      // Fires when the client disconnects mid-stream (tab closed, navigation,
+      // fetch aborted). Generation keeps running and saving to the DB in the
+      // background — we just stop trying to push further SSE frames to it.
+      closed = true;
     },
   });
 
