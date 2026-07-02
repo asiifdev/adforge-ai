@@ -7,6 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "postbuild:standalone": "cp -r public .next/standalone/public && cp -r .next/static .next/standalone/.next/static && cp .env.local .next/standalone/.env.local 2>/dev/null; true",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
