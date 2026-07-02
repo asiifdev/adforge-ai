@@ -16,6 +16,8 @@ AdForge AI eliminates the copy bottleneck in performance marketing. You enter a 
 
 Every variation appears in real-time via streaming as it's generated. You can star favorites, assign A/B/C/D labels, add internal notes, compare two variations side-by-side, and export directly to CSV (formatted for Google Ads Editor and Meta Ads Manager), JSON, or PDF. Every character limit above is enforced in code, not just requested in the AI prompt — see "Built to survive an audit" below.
 
+Briefs can be generated in **English or Indonesian**, projects can be duplicated (brief included) to spin up variants of a working campaign, and the dashboard supports searching across your projects.
+
 ---
 
 ## Why build this one?
@@ -71,16 +73,20 @@ Full findings and the fixes are in `docs/ADR.md` (ADR-009) and reflected through
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 16 (App Router, Server Actions, Turbopack) |
+| Framework | Next.js 16.2.9 (App Router, Server Actions, Turbopack) |
 | Language | TypeScript 5 (strict mode) |
-| UI | Tailwind CSS v4 + shadcn/ui (Base UI) |
-| AI | OpenAI SDK v6, GPT-4o, streaming SSE |
-| ORM | Prisma v7 with PostgreSQL 18 |
-| Auth | jose JWT (httpOnly cookies, 7-day expiry) |
+| UI | React 19, Tailwind CSS v4 + shadcn/ui (Base UI, not Radix) |
+| AI | OpenAI SDK v6, GPT-4o (or any OpenAI-compatible endpoint via `OPENAI_BASE_URL`), streaming SSE |
+| ORM | Prisma v7 (`@prisma/adapter-pg`) with PostgreSQL 18 |
+| Auth | jose JWT (httpOnly cookies), enforced by `proxy.ts` (Next 16's rename of `middleware.ts`) |
 | Validation | Zod v4 |
 | Forms | React Hook Form v7 |
 | Export | papaparse (CSV) + jsPDF (PDF) |
-| Package manager | pnpm |
+| Rate limiting | Postgres-backed atomic upsert (`rate_limits` table) — survives restarts, safe across instances |
+| Testing | Vitest (unit) + isolated Dockerized Postgres for integration tests |
+| Package manager | pnpm 10 |
+
+> This project runs on a customized build of Next.js with breaking changes from the framework you may know — see `AGENTS.md` and `node_modules/next/dist/docs/` before making framework-level changes.
 
 ---
 
@@ -88,9 +94,9 @@ Full findings and the fixes are in `docs/ADR.md` (ADR-009) and reflected through
 
 ### Prerequisites
 - Node.js ≥ 22
-- pnpm ≥ 10
+- pnpm ≥ 10 (repo pins `pnpm@10.24.0` via `packageManager`)
 - Docker (for local PostgreSQL)
-- OpenAI API key
+- OpenAI API key, or any OpenAI-compatible endpoint (OpenRouter, Groq, Together, Ollama, ...)
 
 ### Setup
 
@@ -120,9 +126,31 @@ Open [http://localhost:3000](http://localhost:3000) and register an account.
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/adforge
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o
+# Optional: point at any OpenAI-compatible endpoint instead of api.openai.com
+# e.g. OpenRouter, Groq, Together, or a local Ollama server
+OPENAI_BASE_URL=
 JWT_SECRET=your-secret-at-least-32-chars
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
+
+### Available Scripts
+
+| Command | Description |
+|---|---|
+| `pnpm dev` | Start the dev server (Turbopack) |
+| `pnpm build` / `pnpm start` | Production build / start |
+| `pnpm lint` | ESLint |
+| `pnpm test` / `pnpm test:watch` | Unit tests (Vitest) |
+| `pnpm test:integration` | Integration tests against an isolated, throwaway Dockerized Postgres (`scripts/test-integration.sh`) |
+| `pnpm db:migrate` | Run Prisma migrations against `.env.local` |
+| `pnpm db:generate` | Regenerate the Prisma client |
+| `pnpm db:studio` | Open Prisma Studio |
+| `pnpm db:push` | Push schema changes without a migration |
+| `pnpm db:seed` | Seed the database (`prisma/seed.ts`) |
+
+### Docker
+
+`docker compose up -d` starts Postgres 18 for local dev. The full stack (app + Postgres) can also run in containers — see the multi-stage `Dockerfile` (deps → build → runtime, standalone Next.js output) and `docker-compose.yml`. `JWT_SECRET` and `OPENAI_API_KEY` are required and will fail the compose run if unset.
 
 ---
 
@@ -131,29 +159,44 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 adforge-ai/
 ├── app/
-│   ├── (auth)/login|register      # Auth pages
-│   ├── dashboard/                 # Projects list
+│   ├── (auth)/login|register           # Auth pages
+│   ├── dashboard/                      # Projects list, search, actions
 │   │   └── projects/[id]/
-│   │       ├── brief/             # Brief form
-│   │       └── creatives/         # Generated creatives + streaming
-│   └── api/projects/[id]/
-│       ├── brief/                 # Brief CRUD
-│       ├── generate/              # SSE streaming generation endpoint
-│       ├── variations/            # Star, label, notes, delete
-│       └── export/                # CSV, JSON, PDF download
+│   │       ├── brief/                  # Brief form
+│   │       └── creatives/              # Generated creatives + streaming
+│   └── api/
+│       ├── auth/login|register|logout|me
+│       └── projects/
+│           ├── route.ts                # List/create projects
+│           └── [id]/
+│               ├── brief/              # Brief CRUD
+│               ├── duplicate/          # Clone a project + its brief
+│               ├── generate/           # SSE streaming generation endpoint
+│               ├── variations/         # Star, label, notes, delete
+│               └── export/             # CSV, JSON, PDF download
 ├── components/
-│   ├── brief/                     # BriefForm, PlatformSelector
-│   ├── creatives/                 # VariationCard, CharacterCounter
-│   ├── export/                    # ExportMenu
-│   └── shared/                    # StreamingIndicator
+│   ├── brief/                          # BriefForm, PlatformSelector
+│   ├── creatives/                      # VariationCard, CharacterCounter
+│   ├── export/                         # ExportMenu
+│   ├── shared/                         # StreamingIndicator
+│   └── ui/                             # shadcn/ui (Base UI) primitives
 ├── lib/
-│   ├── ai/prompts/                # Per-platform engineered prompts
-│   ├── db/                        # Prisma client singleton
-│   ├── export/                    # csv.ts, json.ts, pdf.ts
-│   └── validators/                # Zod schemas
-├── docs/                          # PRD, FRD, API Spec, ERD, ADR
-├── prisma/schema.prisma           # Database schema
-└── docker-compose.yml             # Local PostgreSQL 18
+│   ├── ai/
+│   │   ├── client.ts                   # Lazy OpenAI client init
+│   │   ├── generator.ts                # Per-platform generation + truncation
+│   │   └── prompts/                    # Per-platform engineered prompts
+│   ├── db/client.ts                    # Prisma client singleton
+│   ├── export/                         # csv.ts, json.ts, pdf.ts
+│   ├── validators/                     # Zod schemas
+│   ├── auth.ts                         # JWT issue/verify, requireAuth()
+│   └── rate-limit.ts                   # Postgres-backed rate limiting
+├── proxy.ts                            # Auth guard (Next 16's middleware.ts)
+├── tests/                              # Vitest setup + integration suite
+├── docs/                               # PRD, FRD, API Spec, ERD, ADR
+├── prisma/schema.prisma                # Database schema
+├── scripts/test-integration.sh         # Spins up throwaway Postgres for CI
+├── Dockerfile                          # Multi-stage build (standalone output)
+└── docker-compose.yml                  # App + Postgres 18 (+ test profile)
 ```
 
 ---
