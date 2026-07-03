@@ -8,12 +8,45 @@ import {
   Layers,
   Copy,
   Languages,
+  Users,
+  FolderKanban,
+  CheckCircle2,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/db/client";
+
+// Sentence-case label, no trailing colon; value uses proportional figures
+// (never tabular-nums — that's for aligned table columns, not a headline
+// number) and auto-compacts above 10K per the stat-tile convention.
+function formatStat(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 10_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return n.toLocaleString("en-US");
+}
+
+async function getUsageStats() {
+  const [userCount, projectCount, variationCount, generationLogs] = await Promise.all([
+    prisma.user.count(),
+    prisma.project.count(),
+    prisma.variation.count(),
+    prisma.generationLog.groupBy({ by: ["status"], _count: true }),
+  ]);
+
+  const totalLogs = generationLogs.reduce((sum, g) => sum + g._count, 0);
+  const successLogs = generationLogs.find((g) => g.status === "success")?._count ?? 0;
+  const successRate = totalLogs > 0 ? (successLogs / totalLogs) * 100 : null;
+
+  return {
+    users: userCount,
+    projects: projectCount,
+    variations: variationCount,
+    successRate,
+  };
+}
 
 const platforms = [
   {
@@ -68,7 +101,18 @@ const features = [
 ];
 
 export default async function Home() {
-  const session = await getSession();
+  const [session, stats] = await Promise.all([getSession(), getUsageStats()]);
+
+  const statTiles = [
+    { icon: Users, label: "Users registered", value: formatStat(stats.users) },
+    { icon: Copy, label: "Variations generated", value: formatStat(stats.variations) },
+    { icon: FolderKanban, label: "Projects created", value: formatStat(stats.projects) },
+    {
+      icon: CheckCircle2,
+      label: "Success rate",
+      value: stats.successRate === null ? "—" : `${stats.successRate.toFixed(1)}%`,
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -127,6 +171,25 @@ export default async function Home() {
             >
               Sign in
             </Link>
+          </div>
+        </section>
+
+        {/* Usage stats */}
+        <section className="mx-auto max-w-6xl px-6 pb-16">
+          <div className="rounded-xl border border-border bg-card px-6 py-8 md:px-10">
+            <div className="grid grid-cols-2 gap-8 md:grid-cols-4 md:divide-x md:divide-border">
+              {statTiles.map(({ icon: Icon, label, value }) => (
+                <div key={label} className="flex flex-col gap-1.5 md:px-6 md:first:pl-0">
+                  <div className="flex min-h-10 items-start gap-2 text-muted-foreground">
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span className="text-sm leading-tight">{label}</span>
+                  </div>
+                  <span className="text-3xl font-semibold tracking-tight text-foreground">
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
